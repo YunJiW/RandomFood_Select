@@ -3,3 +3,4 @@ dist/
 out/
 *.db.json
 package.json
+CODE_GUIDE.md

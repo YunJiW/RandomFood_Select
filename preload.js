@@ -9,4 +9,7 @@ contextBridge.exposeInMainWorld('api', {
   pickRandom:    ()           => ipcRenderer.invoke('pick-random'),
   getHistory:    ()           => ipcRenderer.invoke('get-history'),
   clearHistory:  ()           => ipcRenderer.invoke('clear-history'),
+  closeApp:      ()           => ipcRenderer.invoke('close-app'),
+  minimizeApp:   ()           => ipcRenderer.send('minimize-app'),
+  maximizeApp:   ()           => ipcRenderer.send('maximize-app'),
 });

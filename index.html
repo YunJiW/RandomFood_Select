@@ -44,23 +44,34 @@
       height: 40px;
       background: var(--bg);
       display: flex; align-items: center;
-      padding: 0 16px; gap: 8px;
+      padding: 0 14px; gap: 8px;
       border-bottom: 1px solid var(--border);
       flex-shrink: 0;
     }
-    .dot { width: 12px; height: 12px; border-radius: 50%; -webkit-app-region: no-drag; cursor: pointer; }
-    .dot.r { background: #ff5f57; } .dot.y { background: #febc2e; } .dot.g { background: #28c840; }
-    #titlebar span { margin-left: 6px; font-size: 12px; color: var(--muted); font-weight: 500; flex: 1; }
-    #close-btn {
+    #titlebar span { font-size: 12px; color: var(--muted); font-weight: 500; flex: 1; }
+    .win-btns {
       -webkit-app-region: no-drag;
-      width: 28px; height: 28px;
-      background: none; border: none;
-      color: var(--muted); font-size: 18px; line-height: 1;
-      cursor: pointer; border-radius: 6px;
-      display: flex; align-items: center; justify-content: center;
-      transition: background 0.15s, color 0.15s; flex-shrink: 0;
+      display: flex; align-items: center; gap: 7px;
     }
-    #close-btn:hover { background: var(--danger); color: #fff; }
+    .dot {
+      width: 13px; height: 13px; border-radius: 50%;
+      cursor: pointer; border: none; padding: 0;
+      display: flex; align-items: center; justify-content: center;
+      transition: filter 0.15s, transform 0.1s;
+      flex-shrink: 0; position: relative;
+    }
+    .dot:hover { filter: brightness(1.15); transform: scale(1.1); }
+    .dot:active { transform: scale(0.92); }
+    .dot.r { background: #ff5f57; }
+    .dot.y { background: #febc2e; }
+    .dot.g { background: #28c840; }
+    .dot::after {
+      content: ''; font-size: 8px; font-weight: 900;
+      color: rgba(0,0,0,0.45); position: absolute; line-height: 1;
+    }
+    .dot.r:hover::after { content: '✕'; }
+    .dot.y:hover::after { content: '−'; font-size: 10px; }
+    .dot.g:hover::after { content: '+'; }
 
     /* ── Layout ── */
     #app { display: grid; grid-template-columns: 1fr 300px; flex: 1; overflow: hidden; }
@@ -348,11 +359,12 @@
 <body>
 
 <div id="titlebar">
-  <div class="dot r"></div>
-  <div class="dot y"></div>
-  <div class="dot g"></div>
   <span>점심 뭐 먹지? 🍱</span>
-  <button id="close-btn" onclick="window.api.closeApp()" title="앱 종료">✕</button>
+  <div class="win-btns">
+    <button class="dot g" onclick="window.api.maximizeApp()" title="최대화"></button>
+    <button class="dot y" onclick="window.api.minimizeApp()" title="최소화"></button>
+    <button class="dot r" onclick="window.api.closeApp()" title="종료"></button>
+  </div>
 </div>
 
 <div id="app">

@@ -4,6 +4,7 @@ const fs = require('fs');
 
 let db;
 let SQL;
+let mainWin;  // ← 모듈 레벨로 선언
 const dbPath = path.join(app.getPath('userData'), 'lunch.db.json');
 
 // sql.js는 메모리 DB → 앱 종료 시 JSON으로 직렬화해서 저장
@@ -82,7 +83,7 @@ function run(sql, params = []) {
 }
 
 function createWindow() {
-  const win = new BrowserWindow({
+  mainWin = new BrowserWindow({
     width: 900, height: 700, minWidth: 700, minHeight: 600,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -92,7 +93,7 @@ function createWindow() {
     frame: false,
     backgroundColor: '#0f0f0f',
   });
-  win.loadFile('index.html');
+  mainWin.loadFile('index.html');
 }
 
 app.whenReady().then(async () => {
@@ -156,4 +157,17 @@ ipcMain.handle('get-history', () =>
 ipcMain.handle('clear-history', () => {
   run('DELETE FROM history');
   return { success: true };
+});
+
+ipcMain.handle('close-app', () => {
+  app.quit();
+});
+
+ipcMain.on('minimize-app', () => {
+  mainWin?.minimize();
+});
+
+ipcMain.on('maximize-app', () => {
+  if (!mainWin) return;
+  mainWin.isMaximized() ? mainWin.unmaximize() : mainWin.maximize();
 });
