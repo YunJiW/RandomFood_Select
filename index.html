@@ -272,6 +272,66 @@
     .menu-item:not(.excluded) .icon-btn.exclude-btn:hover { color: var(--danger); }
     .menu-item.excluded .icon-btn.exclude-btn { color: var(--success); }
 
+    /* ── Wheel Tab ── */
+    #wheel-tab {
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      gap: 20px;
+      overflow: hidden;
+    }
+    .wheel-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 18px;
+    }
+    .wheel-container {
+      position: relative;
+      width: 420px;
+      height: 420px;
+    }
+    #wheelCanvas {
+      border-radius: 50%;
+      box-shadow: 0 0 40px rgba(255,107,53,0.2), 0 0 0 4px var(--border);
+      display: block;
+    }
+    .wheel-pointer {
+      position: absolute;
+      top: -18px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 28px;
+      color: var(--accent);
+      filter: drop-shadow(0 2px 6px rgba(255,107,53,0.7));
+      z-index: 10;
+      line-height: 1;
+    }
+    #wheel-btn {
+      padding: 13px 44px;
+      font-family: 'Black Han Sans', sans-serif;
+      font-size: 20px;
+      letter-spacing: 2px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border: none;
+      border-radius: 50px;
+      color: #fff;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s, opacity 0.2s;
+      box-shadow: 0 4px 20px rgba(255,107,53,0.35);
+    }
+    #wheel-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(255,107,53,0.45); }
+    #wheel-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .wheel-result-box {
+      height: 36px;
+      font-family: 'Black Han Sans', sans-serif;
+      font-size: 22px;
+      color: var(--accent);
+      letter-spacing: 1px;
+      text-align: center;
+      transition: opacity 0.4s;
+    }
+
     /* ── Right Panel ── */
     #right {
       display: flex;
@@ -428,6 +488,7 @@
   <div id="left">
     <div id="tabs">
       <div class="tab active" data-tab="pick">🎲 랜덤 뽑기</div>
+      <div class="tab" data-tab="wheel">🎡 돌림판</div>
       <div class="tab" data-tab="menu">🍽 메뉴 관리</div>
     </div>
 
@@ -440,6 +501,18 @@
       </div>
       <button id="pick-btn" onclick="pickRandom()">뽑 기 !</button>
       <div id="pick-info">제외된 메뉴는 선택에서 빠집니다</div>
+    </div>
+
+    <!-- Wheel Tab -->
+    <div class="tab-content" id="wheel-tab">
+      <div class="wheel-wrap">
+        <div class="wheel-container">
+          <canvas id="wheelCanvas" width="420" height="420"></canvas>
+          <div class="wheel-pointer">▼</div>
+        </div>
+        <button id="wheel-btn" onclick="spinWheel()">돌 리 기 !</button>
+        <div id="wheel-result" class="wheel-result-box"></div>
+      </div>
     </div>
 
     <!-- Menu Tab -->
@@ -518,6 +591,7 @@
     menus = await window.api.getMenus();
     renderMenus();
     updatePickInfo();
+    drawWheel(wheelAngle);
   }
 
   function renderMenus() {
@@ -676,6 +750,145 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
   }
+
+  // ── Wheel (돌림판) ──────────────────────────────────────
+  const WHEEL_COLORS = [
+    '#ff6b35','#ff9f1c','#ffbf69','#06d6a0','#118ab2',
+    '#9b5de5','#f15bb5','#00bbf9','#e63946','#52c97b',
+    '#ffd166','#ef476f','#26c485','#4cc9f0','#f77f00',
+  ];
+
+  let wheelSpinning = false;
+  let wheelAngle = 0;
+
+  function drawWheel(angle) {
+    const canvas = document.getElementById('wheelCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const cx = W / 2, cy = H / 2, r = W / 2 - 4;
+    const available = menus.filter(m => !m.excluded);
+    ctx.clearRect(0, 0, W, H);
+
+    if (available.length === 0) {
+      ctx.fillStyle = '#1a1a1a';
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#888';
+      ctx.font = '16px Noto Sans KR';
+      ctx.textAlign = 'center';
+      ctx.fillText('메뉴가 없습니다', cx, cy);
+      return;
+    }
+
+    const slice = (Math.PI * 2) / available.length;
+
+    available.forEach((menu, i) => {
+      const start = angle + i * slice;
+      const end   = start + slice;
+
+      // 부채꼴
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, r, start, end);
+      ctx.closePath();
+      ctx.fillStyle = WHEEL_COLORS[i % WHEEL_COLORS.length];
+      ctx.fill();
+      ctx.strokeStyle = '#0f0f0f';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // 텍스트
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(start + slice / 2);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#fff';
+      const fontSize = available.length > 10 ? 11 : 13;
+      ctx.font = `bold ${fontSize}px Noto Sans KR`;
+      ctx.shadowColor = 'rgba(0,0,0,0.5)';
+      ctx.shadowBlur = 3;
+      // 글자 길이 제한
+      let label = menu.name;
+      if (label.length > 5) label = label.slice(0, 5) + '…';
+      ctx.fillText(label, r - 12, 5);
+      ctx.restore();
+    });
+
+    // 중앙 원
+    ctx.beginPath();
+    ctx.arc(cx, cy, 22, 0, Math.PI * 2);
+    ctx.fillStyle = '#0f0f0f';
+    ctx.fill();
+    ctx.strokeStyle = '#2e2e2e';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }
+
+  function spinWheel() {
+    const available = menus.filter(m => !m.excluded);
+    if (available.length === 0) { showToast('선택 가능한 메뉴가 없어요!', true); return; }
+    if (wheelSpinning) return;
+    wheelSpinning = true;
+
+    const btn = document.getElementById('wheel-btn');
+    const resultBox = document.getElementById('wheel-result');
+    btn.disabled = true;
+    resultBox.textContent = '';
+
+    // 목표 인덱스 결정 (서버에서 랜덤 결정)
+    const targetIdx = Math.floor(Math.random() * available.length);
+    const slice = (Math.PI * 2) / available.length;
+
+    // 포인터(상단, -π/2)가 targetIdx 조각 중앙을 가리키도록 최종 각도 계산
+    // 조각 i의 중앙 각도 = i * slice + slice/2
+    // 포인터 위치 = -π/2 (위쪽)
+    // wheelAngle + i*slice + slice/2 = -π/2 + 2πk
+    // => wheelAngle = -π/2 - i*slice - slice/2
+    const targetAngle = -Math.PI / 2 - targetIdx * slice - slice / 2;
+    const extraSpins  = (Math.PI * 2) * (6 + Math.floor(Math.random() * 4)); // 6~9바퀴
+    const finalAngle  = targetAngle - extraSpins;
+
+    const duration = 4000 + Math.random() * 1500; // 4~5.5초
+    const startAngle = wheelAngle;
+    const startTime  = performance.now();
+
+    function easeOut(t) {
+      // cubic ease-out
+      return 1 - Math.pow(1 - t, 3);
+    }
+
+    function animate(now) {
+      const elapsed = now - startTime;
+      const t = Math.min(elapsed / duration, 1);
+      wheelAngle = startAngle + (finalAngle - startAngle) * easeOut(t);
+      drawWheel(wheelAngle);
+
+      if (t < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        wheelAngle = finalAngle;
+        wheelSpinning = false;
+        btn.disabled = false;
+
+        const picked = available[targetIdx];
+        resultBox.textContent = `🎉 ${picked.name}!`;
+
+        // DB에 기록
+        window.api.pickRandom().then(() => loadHistory());
+      }
+    }
+
+    requestAnimationFrame(animate);
+  }
+
+  // 탭 전환 시 돌림판 다시 그리기
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      if (tab.dataset.tab === 'wheel') {
+        setTimeout(() => drawWheel(wheelAngle), 50);
+      }
+    });
+  });
 
   // ── Init ──
   loadAll();
