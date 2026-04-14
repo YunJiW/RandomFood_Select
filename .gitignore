@@ -3,4 +3,7 @@ dist/
 out/
 *.db.json
 package.json
+
+// code guide 제외
 CODE_GUIDE.md
+CODE_GUIDE_1.md
