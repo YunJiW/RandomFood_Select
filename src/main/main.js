@@ -86,14 +86,14 @@ function createWindow() {
   mainWin = new BrowserWindow({
     width: 900, height: 700, minWidth: 700, minHeight: 600,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, '../preload/preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
     },
     frame: false,
     backgroundColor: '#0f0f0f',
   });
-  mainWin.loadFile('index.html');
+  mainWin.loadFile(path.join(__dirname, '../renderer/index.html'));
 }
 
 app.whenReady().then(async () => {
