@@ -19,8 +19,8 @@ async function initDB() {
     db = new SQL.Database();
     createTables();
     // 메뉴 복원
-    const insertMenu = db.prepare('INSERT OR IGNORE INTO menus (id, name, category, excluded, created_at) VALUES (?,?,?,?,?)');
-    (saved.menus || []).forEach(m => insertMenu.run([m.id, m.name, m.category, m.excluded, m.created_at]));
+    const insertMenu = db.prepare('INSERT OR IGNORE INTO menus (id, name, category, excluded, favorite, created_at) VALUES (?,?,?,?,?,?)');
+    (saved.menus || []).forEach(m => insertMenu.run([m.id, m.name, m.category, m.excluded, m.favorite || 0, m.created_at]));
     insertMenu.free();
     // 히스토리 복원
     const insertHist = db.prepare('INSERT OR IGNORE INTO history (id, menu_name, picked_at) VALUES (?,?,?)');
@@ -40,6 +40,7 @@ function createTables() {
       name TEXT NOT NULL UNIQUE,
       category TEXT DEFAULT '기타',
       excluded INTEGER DEFAULT 0,
+      favorite INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now','localtime'))
     );
     CREATE TABLE IF NOT EXISTS history (
@@ -156,6 +157,16 @@ ipcMain.handle('get-history', () =>
 
 ipcMain.handle('clear-history', () => {
   run('DELETE FROM history');
+  return { success: true };
+});
+
+ipcMain.handle('toggle-favorite', (_, id) => {
+  run('UPDATE menus SET favorite = CASE WHEN favorite=0 THEN 1 ELSE 0 END WHERE id=?', [id]);
+  return { success: true };
+});
+
+ipcMain.handle('record-pick', (_, menuName) => {
+  run(`INSERT INTO history (menu_name, picked_at) VALUES (?, datetime('now','localtime'))`, [menuName]);
   return { success: true };
 });
 

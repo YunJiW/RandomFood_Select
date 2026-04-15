@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld('api', {
   pickRandom:    ()           => ipcRenderer.invoke('pick-random'),
   getHistory:    ()           => ipcRenderer.invoke('get-history'),
   clearHistory:  ()           => ipcRenderer.invoke('clear-history'),
+  toggleFavorite:(id)         => ipcRenderer.invoke('toggle-favorite', id),
+  recordPick:    (menuName)   => ipcRenderer.invoke('record-pick', menuName),
   closeApp:      ()           => ipcRenderer.invoke('close-app'),
   minimizeApp:   ()           => ipcRenderer.send('minimize-app'),
   maximizeApp:   ()           => ipcRenderer.send('maximize-app'),

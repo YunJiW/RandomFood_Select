@@ -7,3 +7,6 @@ package.json
 // code guide 제외
 CODE_GUIDE.md
 CODE_GUIDE_1.md
+
+//업데이트 로그 제외
+CHANGELOG.md
