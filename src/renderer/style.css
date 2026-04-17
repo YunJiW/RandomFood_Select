@@ -67,10 +67,10 @@ body {
 .dot.g:hover::after { content: '+'; }
 
 /* ── Layout ── */
-#app { display: grid; grid-template-columns: 1fr 300px; flex: 1; overflow: hidden; }
+#app { display: grid; grid-template-columns: 1fr 300px; grid-template-rows: 1fr; flex: 1; min-height: 0; overflow: hidden; }
 
 /* ── Left Panel ── */
-#left { display: flex; flex-direction: column; border-right: 1px solid var(--border); overflow: hidden; }
+#left { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--border); overflow: hidden; }
 
 /* ── Tabs ── */
 #tabs { display: flex; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
@@ -84,7 +84,7 @@ body {
 .tab:hover:not(.active) { color: var(--text); }
 
 /* ── Tab Content ── */
-.tab-content { display: none; flex: 1; overflow: hidden; flex-direction: column; }
+.tab-content { display: none; flex: 1; min-height: 0; overflow: hidden; flex-direction: column; }
 .tab-content.active { display: flex; }
 
 /* ── Pick Tab ── */
@@ -339,12 +339,12 @@ body {
 #marble-tab { flex-direction: column; align-items: stretch; gap: 10px; padding: 12px; overflow: hidden; }
 #marble-layout { display: flex; gap: 8px; flex: 1; min-height: 0; overflow: hidden; }
 #marbleMinimap {
-  flex-shrink: 0; width: 68px;
+  flex-shrink: 0; width: 68px; min-height: 0; align-self: stretch;
   border-radius: 6px; border: 1px solid var(--border);
   background: var(--surface); display: block;
 }
 #marble-track-wrap {
-  flex: 1; overflow-y: auto; overflow-x: hidden;
+  flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
   border-radius: 8px; border: 1px solid var(--border);
   background: var(--surface);
 }

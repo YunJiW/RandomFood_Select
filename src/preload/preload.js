@@ -14,4 +14,5 @@ contextBridge.exposeInMainWorld('api', {
   closeApp:      ()           => ipcRenderer.invoke('close-app'),
   minimizeApp:   ()           => ipcRenderer.send('minimize-app'),
   maximizeApp:   ()           => ipcRenderer.send('maximize-app'),
+  resizeForTab:  (tab)        => ipcRenderer.send('resize-for-tab', tab),
 });

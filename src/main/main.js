@@ -182,3 +182,15 @@ ipcMain.on('maximize-app', () => {
   if (!mainWin) return;
   mainWin.isMaximized() ? mainWin.unmaximize() : mainWin.maximize();
 });
+
+ipcMain.on('resize-for-tab', (_, tab) => {
+  if (!mainWin || mainWin.isMaximized()) return;
+  const [w] = mainWin.getSize();
+  if (tab === 'marble') {
+    mainWin.setMinimumSize(700, 700);
+    mainWin.setSize(w, Math.max(mainWin.getSize()[1], 900), true);
+  } else {
+    mainWin.setMinimumSize(700, 600);
+    mainWin.setSize(w, 700, true);
+  }
+});
