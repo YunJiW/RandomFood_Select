@@ -438,8 +438,8 @@ const MARBLE_COLORS = [
 ];
 
 const MB_GRAVITY     = 0.22;
-const MB_DAMPING     = 0.990;
-const MB_RESTITUTION = 0.50;
+const MB_DAMPING     = 0.992;
+const MB_RESTITUTION = 0.62;
 const MB_MARBLE_R    = 7;
 const MB_PEG_R       = 5;
 const MB_BUMPER_R    = 5;
@@ -538,12 +538,12 @@ function generatePegs(W) {
 function generateBumpers(W) {
   marbleBumpers = [];
 
-  // Zone 2 SLALOM — 좌우 교번 대각선 범퍼 4개 (벽에 완전히 붙임)
+  // Zone 2 SLALOM — 좌우 교번 대각선 범퍼 4개 (경사 강화: 수직 낙하 시 자연스럽게 튕기도록)
   marbleBumpers.push(
-    { x1: 1,     y1:  762, x2: W * 0.56, y2:  848, color: '#9b5de5' },
-    { x1: W - 1, y1:  942, x2: W * 0.44, y2: 1028, color: '#9b5de5' },
-    { x1: 1,     y1: 1112, x2: W * 0.56, y2: 1198, color: '#9b5de5' },
-    { x1: W - 1, y1: 1282, x2: W * 0.44, y2: 1368, color: '#9b5de5' },
+    { x1: 1,     y1:  762, x2: W * 0.46, y2:  882, color: '#9b5de5' },
+    { x1: W - 1, y1:  942, x2: W * 0.54, y2: 1062, color: '#9b5de5' },
+    { x1: 1,     y1: 1122, x2: W * 0.46, y2: 1242, color: '#9b5de5' },
+    { x1: W - 1, y1: 1302, x2: W * 0.54, y2: 1422, color: '#9b5de5' },
   );
 
   // Zone 6 NARROW — 최하단 좁은 도착 통로 (벽에 완전히 붙임)
@@ -586,13 +586,27 @@ function initMarble() {
   generateBumpers(mbTrackW);
 
   // 회전 구조물: 왼쪽 NARROW 범퍼 끝점에 피벗 고정
-  // 팔 길이(105) < 피벗~오른쪽 범퍼 거리(110) → 25° 이상 기울면 틈 생겨 구슬 통과 가능
   marbleRotators = [
-    { cx: mbTrackW / 2 - 55, cy: 3138, armLen: 105, angle: 0, speed: -0.022, armR: 6, arms: 2 },
+    { cx: mbTrackW / 2 - 55, cy: 3138, armLen: 88, angle: 0, speed: -0.022, armR: 6, arms: 2 },
   ];
 
-  // 범퍼-회전구조물 접합점에 junction peg 추가 — 쐐기 진입 차단
-  marblePegs.push({ x: mbTrackW / 2 - 55, y: 3138, r: MB_BUMPER_R + 2 });
+  // NARROW 범퍼 선분을 따라 밀집 peg — 구슬이 범퍼를 관통하지 못하도록 물리적 봉인
+  const _nY1 = 3010, _nY2 = 3138, _nHalf = 55;
+  [
+    [1,             _nY1, mbTrackW / 2 - _nHalf, _nY2],
+    [mbTrackW - 1,  _nY1, mbTrackW / 2 + _nHalf, _nY2],
+  ].forEach(([x1, y1, x2, y2]) => {
+    const dx = x2 - x1, dy = y2 - y1;
+    const len = Math.hypot(dx, dy);
+    const step = (MB_MARBLE_R + MB_BUMPER_R) * 1.4;
+    for (let d = step * 0.5; d < len; d += step) {
+      const t = d / len;
+      marblePegs.push({ x: x1 + t * dx, y: y1 + t * dy, r: MB_BUMPER_R + 1, hidden: true });
+    }
+  });
+  // NARROW 범퍼 하단 끝점 + 피벗 봉인 peg
+  marblePegs.push({ x: mbTrackW / 2 - _nHalf, y: _nY2, r: MB_BUMPER_R + 3 });
+  marblePegs.push({ x: mbTrackW / 2 + _nHalf, y: _nY2, r: MB_BUMPER_R + 3 });
 
   document.getElementById('marble-result').textContent    = '';
   document.getElementById('marble-start-btn').disabled    = false;
@@ -717,6 +731,7 @@ function drawMarbleTrack(canvas) {
 
   // 핀
   marblePegs.forEach(p => {
+    if (p.hidden) return;
     const g = ctx.createRadialGradient(p.x - 1.5, p.y - 1.5, 0.5, p.x, p.y, p.r);
     g.addColorStop(0, '#6a6a80');
     g.addColorStop(1, '#2a2a35');
@@ -869,8 +884,117 @@ function physicsStep() {
       b.vy = (b.vy / speed) * MAX_SPD;
     }
 
-    b.x  += b.vx;
-    b.y  += b.vy;
+    // 하단 좁은 구간(y>2800) 서브스텝: 회전 장애물↔고정 범퍼 터널링 방지
+    const SUBSTEPS = b.y > 2800 ? 5 : 1;
+    for (let _sub = 0; _sub < SUBSTEPS; _sub++) {
+      b.x += b.vx / SUBSTEPS;
+      b.y += b.vy / SUBSTEPS;
+
+      // ── 충돌 해결: 제약 수집 → 쐐기 감지 → 단일 적용 ──
+
+      // 1. 좌우 벽 충돌 (먼저 처리)
+      if (b.x - b.r < 1) {
+        b.x = 1 + b.r;
+        b.vx = Math.abs(b.vx) * MB_RESTITUTION;
+      } else if (b.x + b.r > W - 1) {
+        b.x = W - 1 - b.r;
+        b.vx = -Math.abs(b.vx) * MB_RESTITUTION;
+      }
+
+      // 2. 모든 장애물 접촉 수집
+      const contacts = [];
+
+      marbleBumpers.forEach(seg => {
+        const { dist, cx, cy } = pointSegClosest(b.x, b.y, seg.x1, seg.y1, seg.x2, seg.y2);
+        const minD = b.r + MB_BUMPER_R;
+        if (dist < minD && dist > 0) {
+          contacts.push({
+            nx: (b.x - cx) / dist, ny: (b.y - cy) / dist,
+            depth: minD - dist, cx, cy, minD, type: 'bumper'
+          });
+        }
+      });
+
+      marbleRotators.forEach(rot => {
+        for (let i = 0; i < (rot.arms || 2); i++) {
+          const a = rot.angle + i * (Math.PI * 2 / (rot.arms || 2));
+          const x2 = rot.cx + Math.cos(a) * rot.armLen;
+          const y2 = rot.cy + Math.sin(a) * rot.armLen;
+          const { dist, cx, cy } = pointSegClosest(b.x, b.y, rot.cx, rot.cy, x2, y2);
+          const minD = b.r + rot.armR;
+          if (dist < minD && dist > 0) {
+            const armDist = Math.hypot(cx - rot.cx, cy - rot.cy);
+            contacts.push({
+              nx: (b.x - cx) / dist, ny: (b.y - cy) / dist,
+              depth: minD - dist, cx, cy, minD, type: 'rotator',
+              rot, armDist
+            });
+          }
+        }
+      });
+
+      marblePegs.forEach(p => {
+        const dx = b.x - p.x, dy = b.y - p.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const minD = b.r + p.r;
+        if (dist < minD && dist > 0) {
+          contacts.push({
+            nx: dx / dist, ny: dy / dist,
+            depth: minD - dist, cx: p.x, cy: p.y, minD, type: 'peg'
+          });
+        }
+      });
+
+      // 3. 쐐기 감지: 서로 반대 방향으로 미는 접촉 쌍 존재 여부 확인
+      let wedged = false;
+      outer: for (let i = 0; i < contacts.length; i++) {
+        for (let j = i + 1; j < contacts.length; j++) {
+          const dot = contacts[i].nx * contacts[j].nx + contacts[i].ny * contacts[j].ny;
+          if (dot < -0.2) { wedged = true; break outer; }
+        }
+      }
+
+      contacts.sort((a, c) => c.depth - a.depth);
+      if (wedged) {
+        // 쐐기: 각 접촉면 표면으로 위치 보정 후 위로 튕겨냄
+        contacts.forEach(c => {
+          b.x = c.cx + c.nx * (c.minD + 1);
+          b.y = c.cy + c.ny * (c.minD + 1);
+        });
+        b.vy = -(Math.abs(b.vy) + 5);           // 현재 속력 반전 + 추가 상향 속도
+        b.vx += (Math.random() - 0.5) * 4;      // 좌우 랜덤 분산 (무한 재끼임 방지)
+        b._stuckTick = 0;
+      } else {
+        // 정상 충돌 해결
+        contacts.forEach(c => {
+          if (c.type === 'rotator') {
+            const tanX = -c.ny * c.rot.speed * c.armDist * 12;
+            const tanY =  c.nx * c.rot.speed * c.armDist * 12;
+            const relDot = (b.vx - tanX) * c.nx + (b.vy - tanY) * c.ny;
+            if (relDot < 0) {
+              // 법선 성분만 반전(접선 보존) + 회전 팔 속도 전달
+              b.vx -= (1 + MB_RESTITUTION) * relDot * c.nx;
+              b.vy -= (1 + MB_RESTITUTION) * relDot * c.ny;
+              b.vx += tanX * 0.3;
+              b.vy += tanY * 0.3;
+            }
+          } else {
+            const dot = b.vx * c.nx + b.vy * c.ny;
+            if (dot < 0) {
+              // 법선 성분만 반전, 접선 성분 보존 → 자연스러운 바운스
+              b.vx -= (1 + MB_RESTITUTION) * dot * c.nx;
+              b.vy -= (1 + MB_RESTITUTION) * dot * c.ny;
+            }
+          }
+          b.x = c.cx + c.nx * (c.minD + 0.2);
+          b.y = c.cy + c.ny * (c.minD + 0.2);
+        });
+      }
+
+      // 4. 최종 벽 클램프
+      if (b.x - b.r < 1)     b.x = 1 + b.r;
+      if (b.x + b.r > W - 1) b.x = W - 1 - b.r;
+    } // end SUBSTEPS
 
     // 끼임 감지 및 탈출 로직
     const _dy = b.y - b._prevY;
@@ -884,111 +1008,11 @@ function physicsStep() {
     if (b._stuckTick > 20) {
       b.vx += (Math.random() - 0.5) * 4;
       b.vy += 2;
-      if (b._stuckTick > 60) { // 심각한 끼임 시 강제 이동
+      if (b._stuckTick > 60) {
         b.y += 5;
         b._stuckTick = 0;
       }
     }
-
-    // ── 충돌 해결: 제약 수집 → 쐐기 감지 → 단일 적용 ──
-
-    // 1. 좌우 벽 충돌 (먼저 처리)
-    if (b.x - b.r < 1) {
-      b.x = 1 + b.r;
-      b.vx = Math.abs(b.vx) * MB_RESTITUTION;
-    } else if (b.x + b.r > W - 1) {
-      b.x = W - 1 - b.r;
-      b.vx = -Math.abs(b.vx) * MB_RESTITUTION;
-    }
-
-    // 2. 모든 장애물 접촉 수집
-    const contacts = [];
-
-    marbleBumpers.forEach(seg => {
-      const { dist, cx, cy } = pointSegClosest(b.x, b.y, seg.x1, seg.y1, seg.x2, seg.y2);
-      const minD = b.r + MB_BUMPER_R;
-      if (dist < minD && dist > 0) {
-        contacts.push({
-          nx: (b.x - cx) / dist, ny: (b.y - cy) / dist,
-          depth: minD - dist, cx, cy, minD, type: 'bumper'
-        });
-      }
-    });
-
-    marbleRotators.forEach(rot => {
-      for (let i = 0; i < (rot.arms || 2); i++) {
-        const a = rot.angle + i * (Math.PI * 2 / (rot.arms || 2));
-        const x2 = rot.cx + Math.cos(a) * rot.armLen;
-        const y2 = rot.cy + Math.sin(a) * rot.armLen;
-        const { dist, cx, cy } = pointSegClosest(b.x, b.y, rot.cx, rot.cy, x2, y2);
-        const minD = b.r + rot.armR;
-        if (dist < minD && dist > 0) {
-          const armDist = Math.hypot(cx - rot.cx, cy - rot.cy);
-          contacts.push({
-            nx: (b.x - cx) / dist, ny: (b.y - cy) / dist,
-            depth: minD - dist, cx, cy, minD, type: 'rotator',
-            rot, armDist
-          });
-        }
-      }
-    });
-
-    marblePegs.forEach(p => {
-      const dx = b.x - p.x, dy = b.y - p.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const minD = b.r + p.r;
-      if (dist < minD && dist > 0) {
-        contacts.push({
-          nx: dx / dist, ny: dy / dist,
-          depth: minD - dist, cx: p.x, cy: p.y, minD, type: 'peg'
-        });
-      }
-    });
-
-    // 3. 쐐기 감지: 서로 반대 방향으로 미는 접촉 쌍 존재 여부 확인
-    let wedged = false;
-    outer: for (let i = 0; i < contacts.length; i++) {
-      for (let j = i + 1; j < contacts.length; j++) {
-        const dot = contacts[i].nx * contacts[j].nx + contacts[i].ny * contacts[j].ny;
-        if (dot < -0.2) { wedged = true; break outer; }
-      }
-    }
-
-    if (wedged) {
-      // 쐐기 상태: 가장 깊이 박힌 장애물로부터 반대 방향 + 아래로 탈출
-      const deepest = contacts.reduce((a, c) => c.depth > a.depth ? c : a);
-      b.x += deepest.nx * (deepest.depth + b.r + 1);
-      b.y += deepest.ny * (deepest.depth + b.r + 1);
-      // 탈출 방향으로 속도 부여 (아래쪽 성분 보장)
-      b.vx = deepest.nx * 3;
-      b.vy = Math.max(deepest.ny * 3, 4);
-    } else {
-      // 정상 충돌 해결: 깊은 순으로 정렬 후 적용
-      contacts.sort((a, c) => c.depth - a.depth);
-      contacts.forEach(c => {
-        if (c.type === 'rotator') {
-          const tanX = -c.ny * c.rot.speed * c.armDist * 12;
-          const tanY =  c.nx * c.rot.speed * c.armDist * 12;
-          const relDot = (b.vx - tanX) * c.nx + (b.vy - tanY) * c.ny;
-          if (relDot < 0) {
-            b.vx = (b.vx - 2 * relDot * c.nx) * MB_RESTITUTION + tanX * 0.4;
-            b.vy = (b.vy - 2 * relDot * c.ny) * MB_RESTITUTION + tanY * 0.4;
-          }
-        } else {
-          const dot = b.vx * c.nx + b.vy * c.ny;
-          if (dot < 0) {
-            b.vx = (b.vx - 2 * dot * c.nx) * MB_RESTITUTION;
-            b.vy = (b.vy - 2 * dot * c.ny) * MB_RESTITUTION;
-          }
-        }
-        b.x = c.cx + c.nx * (c.minD + 0.2);
-        b.y = c.cy + c.ny * (c.minD + 0.2);
-      });
-    }
-
-    // 4. 최종 벽 클램프
-    if (b.x - b.r < 1)     b.x = 1 + b.r;
-    if (b.x + b.r > W - 1) b.x = W - 1 - b.r;
 
     if (b.y > exitY) {
       b.exited = true;
@@ -996,71 +1020,86 @@ function physicsStep() {
     }
   });
 
-  // 5. 구슬 간 충돌
-  for (let i = 0; i < active.length; i++) {
-    for (let j = i + 1; j < active.length; j++) {
-      const a = active[i], b = active[j];
-      const dx = b.x - a.x;
-      const dy = b.y - a.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const minD = a.r + b.r;
-      if (dist < minD && dist > 0) {
-        const nx = dx / dist;
-        const ny = dy / dist;
-        const ov = (minD - dist) / 2;
-        a.x -= nx * ov; a.y -= ny * ov;
-        b.x += nx * ov; b.y += ny * ov;
-        const v1n = a.vx * nx + a.vy * ny;
-        const v2n = b.vx * nx + b.vy * ny;
-        if (v2n - v1n < 0) {
-          const common = (v2n - v1n) * MB_RESTITUTION;
-          a.vx += common * nx;
-          a.vy += common * ny;
-          b.vx -= common * nx;
-          b.vy -= common * ny;
+  // 5+6. 공-공 충돌 ↔ 장애물 보정을 3회 교차 반복 (다중 구슬 연쇄 관통 방지)
+  for (let iter = 0; iter < 3; iter++) {
+    // 공-공 충돌
+    for (let i = 0; i < active.length; i++) {
+      for (let j = i + 1; j < active.length; j++) {
+        const a = active[i], b = active[j];
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const minD = a.r + b.r;
+        if (dist < minD && dist > 0) {
+          const nx = dx / dist;
+          const ny = dy / dist;
+          const ov = (minD - dist) / 2;
+          a.x -= nx * ov; a.y -= ny * ov;
+          b.x += nx * ov; b.y += ny * ov;
+          // 첫 번째 반복에서만 속도 교환 (이후는 위치 보정만)
+          if (iter === 0) {
+            const v1n = a.vx * nx + a.vy * ny;
+            const v2n = b.vx * nx + b.vy * ny;
+            if (v2n - v1n < 0) {
+              const common = (v2n - v1n) * MB_RESTITUTION;
+              a.vx += common * nx; a.vy += common * ny;
+              b.vx -= common * nx; b.vy -= common * ny;
+            }
+          }
         }
       }
     }
-  }
 
-  // 6. 구슬 간 충돌로 장애물 안에 밀려든 경우 위치만 재보정 (속도 변경 없음)
-  active.forEach(b => {
-    if (b.exited) return;
-    marbleBumpers.forEach(seg => {
-      const { dist, cx, cy } = pointSegClosest(b.x, b.y, seg.x1, seg.y1, seg.x2, seg.y2);
-      const minD = b.r + MB_BUMPER_R;
-      if (dist < minD && dist > 0) {
-        const nx = (b.x - cx) / dist, ny = (b.y - cy) / dist;
-        b.x = cx + nx * (minD + 0.2);
-        b.y = cy + ny * (minD + 0.2);
-      }
-    });
-    marbleRotators.forEach(rot => {
-      for (let i = 0; i < (rot.arms || 2); i++) {
-        const a = rot.angle + i * (Math.PI * 2 / (rot.arms || 2));
-        const x2 = rot.cx + Math.cos(a) * rot.armLen;
-        const y2 = rot.cy + Math.sin(a) * rot.armLen;
-        const { dist, cx, cy } = pointSegClosest(b.x, b.y, rot.cx, rot.cy, x2, y2);
-        const minD = b.r + rot.armR;
+    // 장애물 보정 — 위치 + 속도 동시 보정 (장애물 쪽으로 향하는 속도 성분 제거)
+    active.forEach(b => {
+      if (b.exited) return;
+
+      marbleBumpers.forEach(seg => {
+        const { dist, cx, cy } = pointSegClosest(b.x, b.y, seg.x1, seg.y1, seg.x2, seg.y2);
+        const minD = b.r + MB_BUMPER_R;
         if (dist < minD && dist > 0) {
           const nx = (b.x - cx) / dist, ny = (b.y - cy) / dist;
           b.x = cx + nx * (minD + 0.2);
           b.y = cy + ny * (minD + 0.2);
+          const vDot = b.vx * nx + b.vy * ny;
+          if (vDot < 0) { b.vx -= vDot * nx; b.vy -= vDot * ny; }
         }
-      }
+      });
+
+      marbleRotators.forEach(rot => {
+        for (let i = 0; i < (rot.arms || 2); i++) {
+          const a = rot.angle + i * (Math.PI * 2 / (rot.arms || 2));
+          const x2 = rot.cx + Math.cos(a) * rot.armLen;
+          const y2 = rot.cy + Math.sin(a) * rot.armLen;
+          const { dist, cx, cy } = pointSegClosest(b.x, b.y, rot.cx, rot.cy, x2, y2);
+          const minD = b.r + rot.armR;
+          if (dist < minD && dist > 0) {
+            const nx = (b.x - cx) / dist, ny = (b.y - cy) / dist;
+            b.x = cx + nx * (minD + 0.2);
+            b.y = cy + ny * (minD + 0.2);
+            const vDot = b.vx * nx + b.vy * ny;
+            if (vDot < 0) { b.vx -= vDot * nx; b.vy -= vDot * ny; }
+          }
+        }
+      });
+
+      marblePegs.forEach(p => {
+        const dx = b.x - p.x, dy = b.y - p.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const minD = b.r + p.r;
+        if (dist < minD && dist > 0) {
+          const nx = dx / dist, ny = dy / dist;
+          b.x = p.x + nx * (minD + 0.2);
+          b.y = p.y + ny * (minD + 0.2);
+          const vDot = b.vx * nx + b.vy * ny;
+          if (vDot < 0) { b.vx -= vDot * nx; b.vy -= vDot * ny; }
+        }
+      });
+
+      if (b.x - b.r < 1)     b.x = 1 + b.r;
+      if (b.x + b.r > W - 1) b.x = W - 1 - b.r;
     });
-    marblePegs.forEach(p => {
-      const dx = b.x - p.x, dy = b.y - p.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const minD = b.r + p.r;
-      if (dist < minD && dist > 0) {
-        b.x = p.x + (dx / dist) * (minD + 0.2);
-        b.y = p.y + (dy / dist) * (minD + 0.2);
-      }
-    });
-    if (b.x - b.r < 1)     b.x = 1 + b.r;
-    if (b.x + b.r > W - 1) b.x = W - 1 - b.r;
-  });
+  }
 }
 function autoScrollToLast() {
   const wrap = document.getElementById('marble-track-wrap');
