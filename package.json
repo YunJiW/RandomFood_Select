@@ -1,0 +1,15 @@
+{
+  "name": "random-food-select",
+  "version": "1.0.0",
+  "description": "점심 메뉴를 랜덤으로 뽑아주는 Electron 앱",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "dependencies": {
+    "sql.js": "^1.12.0"
+  },
+  "devDependencies": {
+    "electron": "^34.0.0"
+  }
+}

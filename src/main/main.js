@@ -11,7 +11,9 @@ const dbPath = path.join(app.getPath('userData'), 'lunch.db.json');
 // 시작 시 JSON → 메모리 DB 복원
 async function initDB() {
   const initSqlJs = require('sql.js');
-  SQL = await initSqlJs();
+  SQL = await initSqlJs({
+    locateFile: file => path.join(__dirname, '../../node_modules/sql.js/dist/', file),
+  });
 
   if (fs.existsSync(dbPath)) {
     const saved = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
