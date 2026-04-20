@@ -1,11 +1,68 @@
 const { app, BrowserWindow, ipcMain, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const http = require('http');
+
+const RENDERER_DIR = path.join(__dirname, '../renderer');
+const PORT = 3000;
+const MIME_TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.js':   'application/javascript',
+  '.css':  'text/css',
+  '.png':  'image/png',
+  '.jpg':  'image/jpeg',
+  '.svg':  'image/svg+xml',
+  '.ico':  'image/x-icon',
+};
+
+let localServer;
+
+function loadEnvFile() {
+  const envPath = path.join(__dirname, '../../.env');
+  if (!fs.existsSync(envPath)) return;
+
+  const envText = fs.readFileSync(envPath, 'utf8');
+  envText.split(/\r?\n/).forEach(line => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) return;
+
+    const separatorIndex = trimmed.indexOf('=');
+    if (separatorIndex < 0) return;
+
+    const key = trimmed.slice(0, separatorIndex).trim();
+    if (!key || process.env[key] !== undefined) return;
+
+    let value = trimmed.slice(separatorIndex + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    process.env[key] = value;
+  });
+}
+
+function startLocalServer() {
+  return new Promise((resolve, reject) => {
+    localServer = http.createServer((req, res) => {
+      const urlPath = req.url === '/' ? '/index.html' : req.url.split('?')[0];
+      const filePath = path.join(RENDERER_DIR, urlPath);
+      fs.readFile(filePath, (err, data) => {
+        if (err) { res.writeHead(404); res.end('Not found'); return; }
+        const ext = path.extname(filePath);
+        res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
+        res.end(data);
+      });
+    });
+    localServer.listen(PORT, '127.0.0.1', () => resolve(`http://localhost:${PORT}`));
+    localServer.on('error', reject);
+  });
+}
 
 let db;
 let SQL;
 let mainWin;  // ← 모듈 레벨로 선언
 const dbPath = path.join(app.getPath('userData'), 'lunch.db.json');
+loadEnvFile();
+const kakaoRestApiKey = process.env.KAKAO_REST_API_KEY || '';
 const kakaoMapJsKey = process.env.KAKAO_MAP_JS_KEY || process.env.KAKAO_JAVASCRIPT_KEY || '';
 
 // sql.js는 메모리 DB → 앱 종료 시 JSON으로 직렬화해서 저장
@@ -86,7 +143,7 @@ function run(sql, params = []) {
   saveDB();
 }
 
-function createWindow() {
+function createWindow(url) {
   mainWin = new BrowserWindow({
     width: 900, height: 700, minWidth: 700, minHeight: 600,
     webPreferences: {
@@ -97,7 +154,8 @@ function createWindow() {
     frame: false,
     backgroundColor: '#0f0f0f',
   });
-  mainWin.loadFile(path.join(__dirname, '../renderer/index.html'));
+  mainWin.loadURL(url);
+  mainWin.webContents.openDevTools({ mode: 'right' });
 }
 
 app.whenReady().then(async () => {
@@ -105,8 +163,13 @@ app.whenReady().then(async () => {
     callback(permission === 'geolocation');
   });
 
+  const url = await startLocalServer();
   await initDB();
-  createWindow();
+  createWindow(url);
+});
+
+app.on('before-quit', () => {
+  localServer?.close();
 });
 
 app.on('window-all-closed', () => {
@@ -180,6 +243,59 @@ ipcMain.handle('record-pick', (_, menuName) => {
 ipcMain.handle('get-kakao-map-config', () => ({
   jsKey: kakaoMapJsKey,
 }));
+
+ipcMain.handle('search-kakao-places', async (_, { query, x, y, radius = 2000, size = 5 } = {}) => {
+  if (!kakaoRestApiKey) {
+    return { success: false, error: 'KAKAO_REST_API_KEY가 설정되지 않았습니다.' };
+  }
+
+  const keyword = String(query || '').trim();
+  if (!keyword) {
+    return { success: false, error: '검색어가 비어 있습니다.' };
+  }
+
+  const params = new URLSearchParams({
+    query: keyword,
+    sort: 'distance',
+    size: String(Math.min(Math.max(Number(size) || 5, 1), 15)),
+  });
+
+  if (Number.isFinite(Number(x)) && Number.isFinite(Number(y))) {
+    params.set('x', String(x));
+    params.set('y', String(y));
+    params.set('radius', String(Math.min(Math.max(Number(radius) || 2000, 1), 20000)));
+  }
+
+  try {
+    const response = await fetch(`https://dapi.kakao.com/v2/local/search/keyword.json?${params.toString()}`, {
+      headers: {
+        Authorization: `KakaoAK ${kakaoRestApiKey}`,
+      },
+    });
+
+    if (!response.ok) {
+      return { success: false, error: `카카오 장소 검색 실패 (${response.status})` };
+    }
+
+    const data = await response.json();
+    return {
+      success: true,
+      places: (data.documents || []).map(place => ({
+        id: place.id,
+        name: place.place_name,
+        category: place.category_name,
+        address: place.road_address_name || place.address_name,
+        phone: place.phone,
+        distance: place.distance ? Number(place.distance) : null,
+        x: Number(place.x),
+        y: Number(place.y),
+        url: place.place_url,
+      })),
+    };
+  } catch (error) {
+    return { success: false, error: error.message || '카카오 장소 검색 중 오류가 발생했습니다.' };
+  }
+});
 
 ipcMain.handle('close-app', () => {
   app.quit();

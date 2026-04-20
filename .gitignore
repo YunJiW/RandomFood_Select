@@ -2,6 +2,9 @@ node_modules/
 dist/
 out/
 *.db.json
+.env
+.env.*
+!.env.example
 
 # code guide 제외
 CODE_GUIDE.md
