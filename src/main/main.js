@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -6,6 +6,7 @@ let db;
 let SQL;
 let mainWin;  // ← 모듈 레벨로 선언
 const dbPath = path.join(app.getPath('userData'), 'lunch.db.json');
+const kakaoMapJsKey = process.env.KAKAO_MAP_JS_KEY || process.env.KAKAO_JAVASCRIPT_KEY || '';
 
 // sql.js는 메모리 DB → 앱 종료 시 JSON으로 직렬화해서 저장
 // 시작 시 JSON → 메모리 DB 복원
@@ -100,6 +101,10 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    callback(permission === 'geolocation');
+  });
+
   await initDB();
   createWindow();
 });
@@ -171,6 +176,10 @@ ipcMain.handle('record-pick', (_, menuName) => {
   run(`INSERT INTO history (menu_name, picked_at) VALUES (?, datetime('now','localtime'))`, [menuName]);
   return { success: true };
 });
+
+ipcMain.handle('get-kakao-map-config', () => ({
+  jsKey: kakaoMapJsKey,
+}));
 
 ipcMain.handle('close-app', () => {
   app.quit();

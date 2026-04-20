@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('api', {
   clearHistory:  ()           => ipcRenderer.invoke('clear-history'),
   toggleFavorite:(id)         => ipcRenderer.invoke('toggle-favorite', id),
   recordPick:    (menuName)   => ipcRenderer.invoke('record-pick', menuName),
+  getKakaoMapConfig: ()       => ipcRenderer.invoke('get-kakao-map-config'),
   closeApp:      ()           => ipcRenderer.invoke('close-app'),
   minimizeApp:   ()           => ipcRenderer.send('minimize-app'),
   maximizeApp:   ()           => ipcRenderer.send('maximize-app'),

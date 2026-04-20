@@ -73,7 +73,15 @@ body {
 #left { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--border); overflow: hidden; }
 
 /* ── Tabs ── */
-#tabs { display: flex; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
+#tabs { display: flex; align-items: center; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
+.tab-map-btn {
+  margin-left: auto; margin-right: 8px;
+  padding: 5px 12px; font-size: 11px; font-weight: 600;
+  color: var(--muted); background: transparent;
+  border: 1px solid var(--border); border-radius: 999px;
+  cursor: pointer; transition: color 0.15s, border-color 0.15s;
+}
+.tab-map-btn:hover { color: var(--accent); border-color: var(--accent); }
 .tab {
   padding: 11px 18px; font-size: 12px; font-weight: 600;
   color: var(--muted); cursor: pointer;
@@ -149,7 +157,107 @@ body {
 }
 #pick-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(255,107,53,0.45); }
 #pick-btn:active { transform: translateY(0); }
+.secondary-action-btn {
+  padding: 12px 18px;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, transform 0.15s;
+}
+.secondary-action-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+.secondary-action-btn.compact {
+  padding: 10px 16px;
+  font-size: 11px;
+}
 #pick-info { font-size: 11px; color: var(--muted); font-weight: 500; }
+.map-test-panel {
+  width: min(calc(100vw - 32px), 560px);
+  display: none;
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  background: linear-gradient(180deg, rgba(32,32,37,0.94), rgba(23,23,26,0.96));
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 18px 50px rgba(0,0,0,0.42);
+  z-index: 220;
+}
+.map-test-panel.show { display: flex; }
+.map-test-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.map-test-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: var(--text);
+}
+.map-close-btn {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-family: var(--font);
+  cursor: pointer;
+}
+.map-close-btn:hover {
+  color: var(--text);
+  border-color: var(--text);
+}
+.map-status {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.map-key-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.map-key-row input {
+  flex: 1;
+  min-width: 220px;
+  padding: 9px 11px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 12px;
+  font-family: var(--font);
+  outline: none;
+}
+.map-key-row input:focus { border-color: var(--accent); }
+.current-location-meta {
+  min-height: 18px;
+  font-size: 11px;
+  color: var(--accent2);
+}
+#kakao-map {
+  width: 100%;
+  height: 260px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background:
+    radial-gradient(circle at 20% 20%, rgba(255,107,53,0.16), transparent 28%),
+    linear-gradient(135deg, #121216, #1a1a20);
+}
 
 /* ── Wheel Tab ── */
 #wheel-tab { flex-direction: row !important; overflow: hidden; }
@@ -351,7 +459,7 @@ body {
 #marble-track-wrap::-webkit-scrollbar { width: 3px; }
 #marble-track-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 #marbleCanvas { display: block; }
-#marble-controls { display: flex; align-items: center; gap: 10px; flex-shrink: 0; justify-content: center; }
+#marble-controls { display: flex; align-items: center; gap: 10px; flex-shrink: 0; justify-content: center; flex-wrap: wrap; }
 #marble-start-btn {
   padding: 10px 36px;
   font-family: var(--font-display); font-size: 15px; font-weight: 700; letter-spacing: 1px;

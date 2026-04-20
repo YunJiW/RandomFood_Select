@@ -4,6 +4,10 @@ let weights   = {};   // { menuId: number }
 let editingId = null;
 let favOnly   = false;
 const selectedCats = new Set(['한식','중식','일식','양식','분식','기타']);
+let kakaoMapConfig = null;
+let kakaoMapScriptPromise = null;
+let kakaoMapInstance = null;
+let kakaoMapMarker = null;
 
 // ── 탭 전환 ──
 document.querySelectorAll('.tab').forEach(tab => {
@@ -20,6 +24,7 @@ document.querySelectorAll('.tab').forEach(tab => {
 
 document.getElementById('new-name').addEventListener('keydown', e => { if (e.key === 'Enter') addMenu(); });
 document.getElementById('wheel-new-name').addEventListener('keydown', e => { if (e.key === 'Enter') addMenuFromWheel(); });
+document.getElementById('kakao-js-key').addEventListener('keydown', e => { if (e.key === 'Enter') testCurrentLocationMap(); });
 
 // ── 카테고리 필터 ──
 document.querySelectorAll('.cat-btn').forEach(btn => {
@@ -62,6 +67,13 @@ function showPanel(name) {
 
 // ── 데이터 로드 ──
 async function loadAll() { await loadMenus(); await loadHistory(); }
+
+async function loadKakaoMapConfig() {
+  if (!window.api.getKakaoMapConfig) return;
+  kakaoMapConfig = await window.api.getKakaoMapConfig();
+  const keyInput = document.getElementById('kakao-js-key');
+  if (keyInput && kakaoMapConfig?.jsKey) keyInput.value = kakaoMapConfig.jsKey;
+}
 
 async function loadMenus() {
   menus = await window.api.getMenus();
@@ -320,6 +332,106 @@ function showToast(msg, isError = false) {
   t.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function setMapStatus(message, isError = false) {
+  const status = document.getElementById('map-status');
+  status.textContent = message;
+  status.style.color = isError ? 'var(--danger)' : 'var(--muted)';
+}
+
+function showMapPanel() {
+  document.getElementById('map-test-panel').classList.add('show');
+}
+
+function hideMapPanel() {
+  document.getElementById('map-test-panel').classList.remove('show');
+}
+
+function getCurrentPosition() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error('이 환경에서는 위치 정보를 사용할 수 없습니다.'));
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0,
+    });
+  });
+}
+
+function loadKakaoMapSdk(appKey) {
+  if (window.kakao?.maps) return Promise.resolve(window.kakao.maps);
+  if (kakaoMapScriptPromise) return kakaoMapScriptPromise;
+
+  kakaoMapScriptPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(appKey)}&autoload=false`;
+    script.onload = () => {
+      window.kakao.maps.load(() => resolve(window.kakao.maps));
+    };
+    script.onerror = () => reject(new Error('Kakao 지도 SDK를 불러오지 못했습니다.'));
+    document.head.appendChild(script);
+  });
+
+  return kakaoMapScriptPromise;
+}
+
+async function testCurrentLocationMap() {
+  showMapPanel();
+  const keyInput = document.getElementById('kakao-js-key');
+  const appKey = keyInput.value.trim();
+
+  if (!appKey) {
+    setMapStatus('Kakao JavaScript 키를 먼저 입력해 주세요.', true);
+    showToast('Kakao JavaScript 키가 필요합니다.', true);
+    return;
+  }
+
+  try {
+    setMapStatus('현재 위치와 Kakao 지도를 불러오는 중입니다...');
+    const [maps, position] = await Promise.all([
+      loadKakaoMapSdk(appKey),
+      getCurrentPosition(),
+    ]);
+
+    const lat = position.coords.latitude;
+    const lng = position.coords.longitude;
+    const center = new window.kakao.maps.LatLng(lat, lng);
+    const mapContainer = document.getElementById('kakao-map');
+    const locationMeta = document.getElementById('current-location-meta');
+
+    if (!kakaoMapInstance) {
+      kakaoMapInstance = new maps.Map(mapContainer, {
+        center,
+        level: 3,
+      });
+      const zoomControl = new maps.ZoomControl();
+      kakaoMapInstance.addControl(zoomControl, window.kakao.maps.ControlPosition.RIGHT);
+    } else {
+      kakaoMapInstance.setLevel(3);
+      kakaoMapInstance.setCenter(center);
+    }
+
+    if (!kakaoMapMarker) {
+      kakaoMapMarker = new maps.Marker({ position: center });
+      kakaoMapMarker.setMap(kakaoMapInstance);
+    } else {
+      kakaoMapMarker.setPosition(center);
+    }
+
+    kakaoMapInstance.relayout();
+    kakaoMapInstance.setCenter(center);
+    locationMeta.textContent = `위도 ${lat.toFixed(6)} / 경도 ${lng.toFixed(6)}`;
+    setMapStatus('현재 위치 기반 지도를 불러왔습니다.');
+    showToast('현재 위치 지도를 불러왔습니다.');
+  } catch (error) {
+    setMapStatus(error.message || '현재 위치 지도를 불러오지 못했습니다.', true);
+    showToast(error.message || '현재 위치 지도를 불러오지 못했습니다.', true);
+  }
 }
 
 // ── 돌림판 ───────────────────────────────────────────────
@@ -1170,4 +1282,5 @@ function skipMarble() {
 }
 
 // ── Init ──
+loadKakaoMapConfig();
 loadAll();

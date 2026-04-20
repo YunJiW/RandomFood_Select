@@ -23,6 +23,7 @@
       <div class="tab active" data-tab="pick">랜덤 뽑기</div>
       <div class="tab" data-tab="wheel">돌림판</div>
       <div class="tab" data-tab="marble">마블 룰렛</div>
+      <button class="secondary-action-btn compact tab-map-btn" onclick="testCurrentLocationMap()">📍 지도 테스트</button>
     </div>
 
     <!-- Pick Tab -->
@@ -137,6 +138,22 @@
       <button class="btn-save" onclick="saveEdit()">저장</button>
     </div>
   </div>
+</div>
+
+<div id="map-test-panel" class="map-test-panel">
+  <div class="map-test-header">
+    <div>
+      <div class="map-test-title">Kakao Map Test</div>
+      <div id="map-status" class="map-status">버튼을 누르면 현재 위치 기반 지도를 불러옵니다.</div>
+    </div>
+    <button class="map-close-btn" onclick="hideMapPanel()">닫기</button>
+  </div>
+  <div class="map-key-row">
+    <input type="text" id="kakao-js-key" placeholder="Kakao JavaScript 키 입력" />
+    <button class="btn-add" onclick="testCurrentLocationMap()">지도 불러오기</button>
+  </div>
+  <div id="current-location-meta" class="current-location-meta"></div>
+  <div id="kakao-map"></div>
 </div>
 
 <div id="toast"></div>
