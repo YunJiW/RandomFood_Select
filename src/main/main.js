@@ -1,7 +1,8 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
+const { execFile } = require('child_process');
 
 const RENDERER_DIR = path.join(__dirname, '../renderer');
 const PORT = 3000;
@@ -170,6 +171,70 @@ function run(sql, params = []) {
   saveDB();
 }
 
+function getWindowsNativePosition() {
+  return new Promise((resolve, reject) => {
+    if (process.platform !== 'win32') {
+      reject(new Error('Windows 네이티브 위치 조회를 지원하지 않는 플랫폼입니다.'));
+      return;
+    }
+
+    const psScript = [
+      'Add-Type -AssemblyName System.Device',
+      '$watcher = New-Object System.Device.Location.GeoCoordinateWatcher([System.Device.Location.GeoPositionAccuracy]::Default)',
+      '$watcher.Start()',
+      'for ($i = 0; $i -lt 20; $i++) {',
+      '  Start-Sleep -Milliseconds 500',
+      '  if ($watcher.Position.Location.IsUnknown -eq $false) { break }',
+      '}',
+      '$coord = $watcher.Position.Location',
+      'if ($coord.IsUnknown) {',
+      '  throw "Windows 위치 서비스에서 좌표를 받지 못했습니다."',
+      '}',
+      '$accuracy = 0',
+      'if ($coord.HorizontalAccuracy -gt 0) {',
+      '  $accuracy = $coord.HorizontalAccuracy',
+      '}',
+      '$payload = @{',
+      '  latitude = $coord.Latitude',
+      '  longitude = $coord.Longitude',
+      '  accuracy = $accuracy',
+      '}',
+      '$payload | ConvertTo-Json -Compress',
+    ].join('\n');
+
+    execFile(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', psScript],
+      { windowsHide: true, timeout: 15000 },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject(new Error(stderr?.trim() || error.message || 'Windows 위치 조회 실행에 실패했습니다.'));
+          return;
+        }
+
+        try {
+          const parsed = JSON.parse(stdout.trim());
+          if (!Number.isFinite(parsed.latitude) || !Number.isFinite(parsed.longitude)) {
+            reject(new Error('Windows 위치 조회 결과가 올바르지 않습니다.'));
+            return;
+          }
+
+          resolve({
+            coords: {
+              latitude: Number(parsed.latitude),
+              longitude: Number(parsed.longitude),
+              accuracy: Number(parsed.accuracy) || 0,
+            },
+            source: 'native',
+          });
+        } catch (parseError) {
+          reject(new Error(stdout.trim() || 'Windows 위치 조회 결과를 해석하지 못했습니다.'));
+        }
+      }
+    );
+  });
+}
+
 function createWindow() {
   mainWin = new BrowserWindow({
     width: 900,
@@ -189,7 +254,21 @@ function createWindow() {
   if (!app.isPackaged) mainWin.webContents.openDevTools({ mode: 'right' });
 }
 
+function setupPermissionHandlers() {
+  const defaultSession = session.defaultSession;
+  if (!defaultSession) return;
+
+  defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    callback(permission === 'geolocation');
+  });
+
+  defaultSession.setPermissionCheckHandler((webContents, permission) => {
+    return permission === 'geolocation';
+  });
+}
+
 app.whenReady().then(async () => {
+  setupPermissionHandlers();
   serverUrl = await startLocalServer();
   await initDB();
   createWindow();
@@ -266,6 +345,10 @@ ipcMain.handle('record-pick', (_, menuName) => {
 ipcMain.handle('get-kakao-map-config', () => ({
   jsKey: kakaoMapJsKey,
 }));
+
+ipcMain.handle('get-native-position', async () => {
+  return getWindowsNativePosition();
+});
 
 ipcMain.handle('search-kakao-places', async (_, { query, x, y, radius = 2000, size = 5 } = {}) => {
   if (!kakaoRestApiKey) {

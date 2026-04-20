@@ -401,6 +401,41 @@ function updateMapStatusWithCenter(lat, lng, extra = '') {
   document.getElementById('current-location-meta').textContent = extra ? `${prefix} · ${extra}` : prefix;
 }
 
+function getBrowserGeolocationPosition() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error('이 환경에서는 브라우저 위치 정보를 사용할 수 없습니다.'));
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        resolve({
+          coords: {
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+            accuracy: coords.accuracy,
+          },
+          source: 'geolocation',
+        });
+      },
+      (error) => {
+        const messageMap = {
+          1: '위치 권한이 거부되었습니다.',
+          2: '기기 위치를 확인할 수 없습니다.',
+          3: '위치 정보를 가져오는 시간이 초과되었습니다.',
+        };
+        reject(new Error(messageMap[error.code] || error.message || '위치 정보를 가져오지 못했습니다.'));
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      }
+    );
+  });
+}
+
 function getIpBasedPosition() {
   return fetch('https://ipapi.co/json/')
     .then(r => r.json())
@@ -415,6 +450,38 @@ function getIpBasedPosition() {
         source: 'ip',
       };
     });
+}
+
+async function getBestAvailablePosition() {
+  try {
+    return await getBrowserGeolocationPosition();
+  } catch (geoError) {
+    console.warn('[Map] 브라우저 위치 정보를 가져오지 못했습니다. 네이티브 위치 조회를 시도합니다:', geoError);
+
+    if (window.api.getNativePosition) {
+      try {
+        const nativePosition = await window.api.getNativePosition();
+        return {
+          ...nativePosition,
+          fallbackReason: geoError.message,
+        };
+      } catch (nativeError) {
+        console.warn('[Map] 네이티브 위치 정보를 가져오지 못해 IP 위치로 대체합니다:', nativeError);
+        const ipPosition = await getIpBasedPosition();
+        return {
+          ...ipPosition,
+          fallbackReason: `${geoError.message} / ${nativeError.message}`,
+        };
+      }
+    }
+
+    console.warn('[Map] 네이티브 위치 API가 없어 IP 위치로 대체합니다.');
+    const ipPosition = await getIpBasedPosition();
+    return {
+      ...ipPosition,
+      fallbackReason: geoError.message,
+    };
+  }
 }
 
 function loadKakaoMapSdk(appKey) {
@@ -462,7 +529,7 @@ async function testCurrentLocationMap() {
     setMapStatus('현재 위치와 Kakao 지도를 불러오는 중입니다...');
     const [maps, position] = await Promise.all([
       loadKakaoMapSdk(appKey),
-      getIpBasedPosition(),
+      getBestAvailablePosition(),
     ]);
 
     const lat = position.coords.latitude;
@@ -492,16 +559,25 @@ async function testCurrentLocationMap() {
 
     kakaoMapInstance.relayout();
     kakaoMapInstance.setCenter(center);
-    const sourceLabel = position.source === 'ip' ? 'IP 기반 대략 위치' : '현재 위치';
+    const sourceLabel =
+      position.source === 'ip'
+        ? 'IP 기반 대략 위치'
+        : position.source === 'native'
+          ? 'Windows 위치 서비스'
+          : '실제 기기 위치';
     locationMeta.textContent = `위도 ${lat.toFixed(6)} / 경도 ${lng.toFixed(6)} · ${sourceLabel}`;
     clearPlaceMarkers();
     renderMapSearchResults([]);
     setMapStatus(position.source === 'ip'
-      ? '정확한 현재 위치를 가져오지 못해 IP 기반 대략 위치로 지도를 불러왔습니다.'
-      : '현재 위치 기반 지도를 불러왔습니다.');
+      ? `정확한 현재 위치를 가져오지 못해 IP 기반 대략 위치로 지도를 불러왔습니다.${position.fallbackReason ? ` (${position.fallbackReason})` : ''}`
+      : position.source === 'native'
+        ? `브라우저 위치 조회는 실패했지만 Windows 위치 서비스로 지도를 불러왔습니다.${position.fallbackReason ? ` (${position.fallbackReason})` : ''}`
+      : '실제 기기 위치 기반 지도를 불러왔습니다.');
     showToast(position.source === 'ip'
       ? 'IP 기반 대략 위치로 지도를 불러왔습니다.'
-      : '현재 위치 지도를 불러왔습니다.');
+      : position.source === 'native'
+        ? 'Windows 위치 서비스로 지도를 불러왔습니다.'
+      : '실제 기기 위치로 지도를 불러왔습니다.');
   } catch (error) {
     setMapStatus(error.message || '현재 위치 지도를 불러오지 못했습니다.', true);
     showToast(error.message || '현재 위치 지도를 불러오지 못했습니다.', true);
