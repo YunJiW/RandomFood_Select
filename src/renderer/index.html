@@ -152,8 +152,13 @@
     <input type="text" id="kakao-js-key" placeholder="Kakao JavaScript 키 입력" />
     <button class="btn-add" onclick="testCurrentLocationMap()">지도 불러오기</button>
   </div>
+  <div class="map-search-row">
+    <input type="text" id="map-search-keyword" placeholder="예: 초밥, 카페, 햄버거" />
+    <button class="btn-add" onclick="searchPlacesOnMap()">검색</button>
+  </div>
   <div id="current-location-meta" class="current-location-meta"></div>
   <div id="kakao-map"></div>
+  <div id="map-search-results" class="map-search-results"></div>
 </div>
 
 <div id="toast"></div>

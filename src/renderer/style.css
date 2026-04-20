@@ -230,6 +230,11 @@ body {
   gap: 8px;
   flex-wrap: wrap;
 }
+.map-search-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 .map-key-row input {
   flex: 1;
   min-width: 220px;
@@ -243,6 +248,19 @@ body {
   outline: none;
 }
 .map-key-row input:focus { border-color: var(--accent); }
+.map-search-row input {
+  flex: 1;
+  min-width: 220px;
+  padding: 9px 11px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 12px;
+  font-family: var(--font);
+  outline: none;
+}
+.map-search-row input:focus { border-color: var(--accent); }
 .current-location-meta {
   min-height: 18px;
   font-size: 11px;
@@ -257,6 +275,48 @@ body {
   background:
     radial-gradient(circle at 20% 20%, rgba(255,107,53,0.16), transparent 28%),
     linear-gradient(135deg, #121216, #1a1a20);
+}
+.map-search-results {
+  max-height: 180px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 2px;
+}
+.map-search-results::-webkit-scrollbar { width: 4px; }
+.map-search-results::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+.map-search-empty {
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+}
+.map-place-item {
+  padding: 10px 11px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s;
+}
+.map-place-item:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+.map-place-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+}
+.map-place-meta,
+.map-place-address {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.4;
 }
 
 /* ── Wheel Tab ── */
