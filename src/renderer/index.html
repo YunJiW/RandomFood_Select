@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>점심 뭐 먹지?</title>
+  <title>랜덤 푸드 셀렉트</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <div id="titlebar">
-  <span>점심 뭐 먹지? 🍱</span>
+  <span>랜덤 푸드 셀렉트</span>
   <div class="win-btns">
     <button class="dot g" onclick="window.api.maximizeApp()" title="최대화"></button>
     <button class="dot y" onclick="window.api.minimizeApp()" title="최소화"></button>
@@ -23,13 +23,12 @@
       <div class="tab active" data-tab="pick">랜덤 뽑기</div>
       <div class="tab" data-tab="wheel">돌림판</div>
       <div class="tab" data-tab="marble">마블 룰렛</div>
-      <button class="secondary-action-btn compact tab-map-btn" onclick="testCurrentLocationMap()">📍 지도 테스트</button>
+      <button class="secondary-action-btn compact tab-map-btn" onclick="testCurrentLocationMap()">지도 테스트</button>
     </div>
 
-    <!-- Pick Tab -->
     <div class="tab-content active" id="pick-tab">
       <div id="pick-main">
-        <div class="pick-title">오늘의 점심은?</div>
+        <div class="pick-title">오늘 뭐 먹지?</div>
         <div id="cat-filter">
           <button class="cat-btn active" data-cat="전체">전체</button>
           <button class="cat-btn active" data-cat="한식">한식</button>
@@ -43,7 +42,7 @@
           <div id="result-category">메뉴를 뽑아보세요</div>
           <div id="result-name">?</div>
         </div>
-        <button id="pick-btn" onclick="pickRandom()">뽑 기 !</button>
+        <button id="pick-btn" onclick="pickRandom()">뽑기!</button>
         <div id="pick-options">
           <label class="opt-label">
             쿨다운
@@ -69,7 +68,6 @@
       </div>
     </div>
 
-    <!-- Marble Tab -->
     <div class="tab-content" id="marble-tab">
       <div id="marble-layout">
         <canvas id="marbleMinimap"></canvas>
@@ -79,24 +77,23 @@
       </div>
       <div id="marble-result"></div>
       <div id="marble-controls">
-        <button id="marble-start-btn" onclick="startMarble()">출 발 !</button>
+        <button id="marble-start-btn" onclick="startMarble()">출발!</button>
         <button id="marble-skip-btn" onclick="skipMarble()" disabled>건너뛰기</button>
       </div>
     </div>
 
-    <!-- Wheel Tab -->
     <div class="tab-content" id="wheel-tab">
       <div id="wheel-left">
         <div class="wheel-container">
           <canvas id="wheelCanvas" width="280" height="280"></canvas>
           <div class="wheel-pointer">▼</div>
         </div>
-        <button id="wheel-btn" onclick="spinWheel()">돌 리 기 !</button>
+        <button id="wheel-btn" onclick="spinWheel()">돌리기!</button>
         <div id="wheel-result" class="wheel-result-box"></div>
       </div>
       <div id="wheel-right">
         <div class="weight-header">
-          <h3>⚖ 가중치 설정</h3>
+          <h3>메뉴 가중치 설정</h3>
           <button class="btn-reset-weights" onclick="resetWeights()">초기화</button>
         </div>
         <div class="wheel-add-bar">
@@ -115,8 +112,8 @@
   <div id="right">
     <div class="panel-header">
       <div class="panel-tabs">
-        <span class="ptab active" onclick="showPanel('history')">🕐 기록</span>
-        <span class="ptab" onclick="showPanel('stats')">📊 통계</span>
+        <span class="ptab active" onclick="showPanel('history')">최근 기록</span>
+        <span class="ptab" onclick="showPanel('stats')">통계</span>
       </div>
       <button class="btn-clear" onclick="clearHistory()">전체 삭제</button>
     </div>

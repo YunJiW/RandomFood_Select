@@ -11,7 +11,7 @@ let kakaoMapMarker = null;
 let kakaoPlaceMarkers = [];
 let kakaoPlaceInfoWindow = null;
 
-// ── 탭 전환 ──
+// 탭 전환
 document.querySelectorAll('.tab').forEach(tab => {
   tab.addEventListener('click', () => {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -28,7 +28,7 @@ document.getElementById('new-name').addEventListener('keydown', e => { if (e.key
 document.getElementById('wheel-new-name').addEventListener('keydown', e => { if (e.key === 'Enter') addMenuFromWheel(); });
 document.getElementById('map-search-keyword').addEventListener('keydown', e => { if (e.key === 'Enter') searchPlacesOnMap(); });
 
-// ── 카테고리 필터 ──
+// 카테고리 필터
 document.querySelectorAll('.cat-btn').forEach(btn => {
   if (btn.dataset.cat === '전체') return;
   btn.addEventListener('click', () => {
@@ -59,7 +59,7 @@ function toggleFavOnly() {
   updatePickInfo(); renderWeightList(); drawWheel(wheelAngle);
 }
 
-// ── 패널 탭 전환 ──
+// 패널 전환
 function showPanel(name) {
   document.querySelectorAll('.ptab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.panel-view').forEach(v => v.classList.remove('active'));
@@ -67,7 +67,7 @@ function showPanel(name) {
   document.getElementById(name === 'history' ? 'history-list' : 'stats-content').classList.add('active');
 }
 
-// ── 데이터 로드 ──
+// 데이터 로드
 async function loadAll() { await loadMenus(); await loadHistory(); }
 
 async function loadKakaoMapConfig() {
@@ -85,7 +85,7 @@ async function loadMenus() {
   initMarble();
 }
 
-// ── 필터 적용된 메뉴 목록 ──
+// 필터 적용된 메뉴 목록
 function getCooldownDays() { return parseInt(document.getElementById('cooldown-select').value) || 0; }
 
 function getRecentlyPickedNames() {
@@ -106,16 +106,16 @@ function getFilteredMenus() {
 
 function renderMenus() {
   const list = document.getElementById('pick-menu-list');
-  if (!menus.length) { list.innerHTML = '<div class="empty-state">등록된 메뉴가 없습니다.<br>아래에서 추가하세요!</div>'; return; }
+  if (!menus.length) { list.innerHTML = '<div class="empty-state">등록된 메뉴가 없습니다.<br>아래에서 메뉴를 추가해 주세요.</div>'; return; }
   list.innerHTML = menus.map(m => `
     <div class="menu-item ${m.excluded ? 'excluded' : ''}">
       <span class="cat-badge">${m.category}</span>
       <span class="menu-name">${m.name}</span>
       ${m.excluded ? '<span class="excluded-tag">제외됨</span>' : ''}
       <button class="icon-btn fav-btn ${m.favorite ? 'active' : ''}" onclick="toggleFavorite(${m.id})" title="즐겨찾기">${m.favorite ? '★' : '☆'}</button>
-      <button class="icon-btn exclude-btn" onclick="toggleExclude(${m.id})" title="${m.excluded ? '포함' : '제외'}">${m.excluded ? '✓' : '⊘'}</button>
-      <button class="icon-btn" onclick="openEdit(${m.id})">✎</button>
-      <button class="icon-btn danger" onclick="deleteMenu(${m.id})">✕</button>
+      <button class="icon-btn exclude-btn" onclick="toggleExclude(${m.id})" title="${m.excluded ? '포함' : '제외'}">${m.excluded ? '↺' : '⊘'}</button>
+      <button class="icon-btn" onclick="openEdit(${m.id})">수정</button>
+      <button class="icon-btn danger" onclick="deleteMenu(${m.id})">삭제</button>
     </div>`).join('');
 }
 
@@ -123,16 +123,16 @@ function updatePickInfo() {
   const filtered = getFilteredMenus();
   const total    = menus.filter(m => !m.excluded).length;
   const parts = [];
-  if (favOnly) parts.push('★즐겨찾기');
+  if (favOnly) parts.push('즐겨찾기');
   if (selectedCats.size < 6) parts.push([...selectedCats].join('/'));
   const cooldown = getCooldownDays();
-  if (cooldown) parts.push(`쿨다운${cooldown}일`);
+  if (cooldown) parts.push(`쿨다운 ${cooldown}일`);
   const filterStr = parts.length ? ` (${parts.join(', ')})` : '';
   document.getElementById('pick-info').textContent =
-    `선택 가능: ${filtered.length}개 / 전체 ${total}개${filterStr}`;
+    `선택 가능 ${filtered.length}개 / 전체 ${total}개${filterStr}`;
 }
 
-// ── 가중치 (돌림판 전용 — 제외 여부만 반영) ──
+// 가중치 계산 (룰렛용, 제외 여부만 반영)
 function getActiveItems() {
   return menus
     .filter(m => !m.excluded)
@@ -145,7 +145,7 @@ function renderWeightList() {
   const active = getActiveItems();
   const total  = totalWeight(active);
 
-  if (!menus.length) { list.innerHTML = '<div class="empty-state">메뉴가 없습니다</div>'; return; }
+  if (!menus.length) { list.innerHTML = '<div class="empty-state">메뉴가 없습니다.</div>'; return; }
 
   list.innerHTML = menus.map(m => {
     const w   = weights[m.id] || 1;
@@ -189,7 +189,7 @@ function resetWeights() {
   showToast('가중치 초기화 완료');
 }
 
-// ── 메뉴 CRUD ──
+// 메뉴 CRUD
 async function addMenu() {
   const nameEl = document.getElementById('new-name');
   const catEl  = document.getElementById('new-category');
@@ -244,10 +244,10 @@ async function saveEdit() {
 
 document.getElementById('modal-overlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
 
-// ── 랜덤 뽑기 ──
+// 랜덤 뽑기
 async function pickRandom() {
   const filtered = getFilteredMenus();
-  if (!filtered.length) { showToast('선택 가능한 메뉴가 없어요!', true); return; }
+  if (!filtered.length) { showToast('선택 가능한 메뉴가 없어요.', true); return; }
   const card  = document.getElementById('result-card');
   const nameEl = document.getElementById('result-name');
   const catEl  = document.getElementById('result-category');
@@ -266,11 +266,11 @@ async function pickRandom() {
   }, 1000);
 }
 
-// ── 히스토리 ──
+// 히스토리
 async function loadHistory() {
   history = await window.api.getHistory();
   const list = document.getElementById('history-list');
-  if (!history.length) { list.innerHTML = '<div class="empty-state">아직 기록이 없습니다</div>'; }
+  if (!history.length) { list.innerHTML = '<div class="empty-state">아직 기록이 없습니다.</div>'; }
   else {
     list.innerHTML = history.map(h => {
       const d = new Date(h.picked_at);
@@ -284,18 +284,18 @@ async function loadHistory() {
 
 async function clearHistory() { await window.api.clearHistory(); await loadHistory(); showToast('기록 삭제 완료'); }
 
-// ── 통계 ──
+// 통계
 function renderStats() {
   const el = document.getElementById('stats-content');
-  if (!history.length) { el.innerHTML = '<div class="stat-empty">아직 기록이 없습니다</div>'; return; }
+  if (!history.length) { el.innerHTML = '<div class="stat-empty">아직 기록이 없습니다.</div>'; return; }
 
-  // 메뉴별 횟수
+  // 메뉴별 선택 횟수
   const counts = {};
   history.forEach(h => { counts[h.menu_name] = (counts[h.menu_name] || 0) + 1; });
   const top5   = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5);
   const maxCnt = top5[0][1];
 
-  // 카테고리별 횟수
+  // 카테고리별 선택 횟수
   const catMap = {};
   history.forEach(h => {
     const m = menus.find(x => x.name === h.menu_name);
@@ -323,7 +323,7 @@ function renderStats() {
   `;
 }
 
-// ── Toast ──
+// Toast
 let toastTimer;
 function showToast(msg, isError = false) {
   const t = document.getElementById('toast');
@@ -401,30 +401,6 @@ function updateMapStatusWithCenter(lat, lng, extra = '') {
   document.getElementById('current-location-meta').textContent = extra ? `${prefix} · ${extra}` : prefix;
 }
 
-function getCurrentPosition() {
-  return fetch('https://ipapi.co/json/')
-    .then(r => r.json())
-    .then(data => {
-      if (!data.latitude) throw new Error('IP 위치 조회 실패');
-      return { coords: { latitude: data.latitude, longitude: data.longitude, accuracy: 5000 } };
-    });
-}
-
-function getBrowserPosition() {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error('브라우저 위치 정보를 사용할 수 없습니다.'));
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(resolve, reject, {
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 0,
-    });
-  });
-}
-
 function getIpBasedPosition() {
   return fetch('https://ipapi.co/json/')
     .then(r => r.json())
@@ -441,16 +417,6 @@ function getIpBasedPosition() {
     });
 }
 
-async function getPreferredCurrentPosition() {
-  try {
-    const position = await getBrowserPosition();
-    return { ...position, source: 'geolocation' };
-  } catch (error) {
-    console.warn('[Location] geolocation failed, falling back to IP lookup:', error);
-    return getIpBasedPosition();
-  }
-}
-
 function loadKakaoMapSdk(appKey) {
   if (window.kakao?.maps) return Promise.resolve(window.kakao.maps);
   if (kakaoMapScriptPromise) return kakaoMapScriptPromise;
@@ -464,7 +430,7 @@ function loadKakaoMapSdk(appKey) {
     };
 
     const timer = setTimeout(() => {
-      cleanup(new Error('Kakao 지도 SDK 로드 시간 초과. 앱 키와 등록 도메인(http://localhost:3000)을 확인하세요.'));
+      cleanup(new Error('Kakao 지도 SDK 로드 시간이 초과되었습니다. 카카오 콘솔에 http://localhost:3000 이 등록되어 있는지 확인해 주세요.'));
     }, 10000);
 
     script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(appKey)}&autoload=false`;
@@ -474,7 +440,7 @@ function loadKakaoMapSdk(appKey) {
     script.onerror = (e) => {
       clearTimeout(timer);
       console.error('[Kakao SDK] 스크립트 로드 실패:', e);
-      cleanup(new Error('Kakao 지도 SDK를 불러오지 못했습니다. 앱 키와 등록 도메인을 확인하세요.'));
+      cleanup(new Error('Kakao 지도 SDK를 불러오지 못했습니다. 카카오 콘솔의 도메인 등록 상태를 확인해 주세요.'));
     };
     document.head.appendChild(script);
   });
@@ -487,7 +453,7 @@ async function testCurrentLocationMap() {
   const appKey = (kakaoMapConfig?.jsKey || '').trim();
 
   if (!appKey) {
-    setMapStatus('Kakao JavaScript 키를 먼저 입력해 주세요.', true);
+    setMapStatus('Kakao JavaScript 키가 설정되지 않았습니다.', true);
     showToast('Kakao JavaScript 키가 필요합니다.', true);
     return;
   }
@@ -496,7 +462,7 @@ async function testCurrentLocationMap() {
     setMapStatus('현재 위치와 Kakao 지도를 불러오는 중입니다...');
     const [maps, position] = await Promise.all([
       loadKakaoMapSdk(appKey),
-      getPreferredCurrentPosition(),
+      getIpBasedPosition(),
     ]);
 
     const lat = position.coords.latitude;
@@ -647,14 +613,14 @@ function drawWheel(angle) {
       ctx.font = `600 ${fs}px Pretendard, sans-serif`;
       ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 4;
       let label = menu.name;
-      if (label.length > 5) label = label.slice(0, 5) + '…';
+      if (label.length > 5) label = label.slice(0, 5) + '..';
       ctx.fillText(label, r - 10, 4);
       ctx.restore();
     }
     cur = e;
   });
 
-  // 중앙 원
+  // 중앙 버튼
   ctx.beginPath(); ctx.arc(cx, cy, 18, 0, Math.PI * 2);
   ctx.fillStyle = '#0d0d0f'; ctx.fill();
   ctx.strokeStyle = '#2a2a30'; ctx.lineWidth = 2; ctx.stroke();
@@ -662,7 +628,7 @@ function drawWheel(angle) {
 
 function spinWheel() {
   const items = getActiveItems();
-  if (!items.length) { showToast('선택 가능한 메뉴가 없어요!', true); return; }
+  if (!items.length) { showToast('선택 가능한 메뉴가 없어요.', true); return; }
   if (wheelSpinning) return;
   wheelSpinning = true;
 
@@ -681,7 +647,7 @@ function spinWheel() {
   const sliceAngle = (items[targetIdx].weight / total) * Math.PI * 2;
   const sliceMid   = sliceStart + sliceAngle / 2;
 
-  // 포인터(-π/2)가 sliceMid를 가리키도록 역산
+  // 포인터(-PI/2)가 sliceMid를 가리키도록 계산
   const targetAngle = -Math.PI / 2 - sliceMid;
   const extraSpins  = Math.PI * 2 * (6 + Math.floor(Math.random() * 4));
   const finalAngle  = targetAngle - extraSpins;
@@ -702,14 +668,14 @@ function spinWheel() {
       wheelAngle = finalAngle;
       wheelSpinning = false;
       btn.disabled = false;
-      resultBox.textContent = `🎉 ${items[targetIdx].name}!`;
+      resultBox.textContent = `당첨 ${items[targetIdx].name}!`;
       window.api.recordPick(items[targetIdx].name).then(() => loadHistory());
     }
   }
   requestAnimationFrame(animate);
 }
 
-// ── 마블 룰렛 (Dynamic Plinko — 5구역) ──────────────────────────────
+// 마블 룰렛 (Dynamic Plinko, 5구역)
 const MARBLE_COLORS = [
   '#ff6b35','#4cc9f0','#06d6a0','#ffd166','#9b5de5',
   '#f15bb5','#118ab2','#ffb347','#e63946','#52c97b',
@@ -768,7 +734,7 @@ function generatePegs(W) {
   const m  = MB_MARBLE_R * 3 + MB_PEG_R;
   const uW = W - m * 2;
 
-  // Zone 1 ENTRY — 표준 플링코 7행
+  // Zone 1 ENTRY 핀 배치 7줄
   for (let row = 0; row < 7; row++) {
     const y    = 100 + row * 84;
     const even = row % 2 === 0;
@@ -780,7 +746,7 @@ function generatePegs(W) {
     }
   }
 
-  // Zone 3 MID — 지그재그 (좌우 교대 통로)
+  // Zone 3 MID 지그재그 (좌우 교차 통로)
   const MID_Y0   = 1500;
   const MID_ROWS = 7;
   const MID_DY   = 130;
@@ -788,7 +754,7 @@ function generatePegs(W) {
 
   for (let row = 0; row < MID_ROWS; row++) {
     const y = MID_Y0 + row * MID_DY;
-    // 짝수 행: 오른쪽에 구멍 / 홀수 행: 왼쪽에 구멍
+    // 짝수 줄은 오른쪽에 구멍 / 홀수 줄은 왼쪽에 구멍
     const passOnRight = row % 2 === 0;
     const passX0 = passOnRight ? W - m - PASS_W : m;
     const passX1 = passOnRight ? W - m           : m + PASS_W;
@@ -800,7 +766,7 @@ function generatePegs(W) {
     }
   }
 
-  // Zone 5 EXIT — 표준 플링코 7행
+  // Zone 5 EXIT 핀 배치 7줄
   for (let row = 0; row < 7; row++) {
     const y    = 2440 + row * 78;
     const even = row % 2 === 0;
@@ -817,7 +783,7 @@ function generatePegs(W) {
 function generateBumpers(W) {
   marbleBumpers = [];
 
-  // Zone 2 SLALOM — 좌우 교번 대각선 범퍼 4개 (경사 강화: 수직 낙하 시 자연스럽게 튕기도록)
+  // Zone 2 SLALOM 좌우 교차 대각선 범퍼 4개
   marbleBumpers.push(
     { x1: 1,     y1:  762, x2: W * 0.46, y2:  882, color: '#9b5de5' },
     { x1: W - 1, y1:  942, x2: W * 0.54, y2: 1062, color: '#9b5de5' },
@@ -825,7 +791,7 @@ function generateBumpers(W) {
     { x1: W - 1, y1: 1302, x2: W * 0.54, y2: 1422, color: '#9b5de5' },
   );
 
-  // Zone 6 NARROW — 최하단 좁은 도착 통로 (벽에 완전히 붙임)
+  // Zone 6 NARROW 최하단 좁은 통로
   const nY1 = 3010, nY2 = 3138;
   const nHalf = 55;
   marbleBumpers.push(
@@ -864,12 +830,12 @@ function initMarble() {
   generatePegs(mbTrackW);
   generateBumpers(mbTrackW);
 
-  // 회전 구조물: 왼쪽 NARROW 범퍼 끝점에 피벗 고정
+  // 회전 구조물은 NARROW 범퍼 끝점 쪽에 고정
   marbleRotators = [
     { cx: mbTrackW / 2 - 55, cy: 3138, armLen: 88, angle: 0, speed: -0.022, armR: 6, arms: 2 },
   ];
 
-  // NARROW 범퍼 선분을 따라 밀집 peg — 구슬이 범퍼를 관통하지 못하도록 물리적 봉인
+  // NARROW 범퍼 선분을 따라 보이지 않는 peg를 추가해 관통을 방지
   const _nY1 = 3010, _nY2 = 3138, _nHalf = 55;
   [
     [1,             _nY1, mbTrackW / 2 - _nHalf, _nY2],
@@ -883,13 +849,13 @@ function initMarble() {
       marblePegs.push({ x: x1 + t * dx, y: y1 + t * dy, r: MB_BUMPER_R + 1, hidden: true });
     }
   });
-  // NARROW 범퍼 하단 끝점 + 피벗 봉인 peg
+  // NARROW 범퍼 하단 끝점 + 보강용 peg
   marblePegs.push({ x: mbTrackW / 2 - _nHalf, y: _nY2, r: MB_BUMPER_R + 3 });
   marblePegs.push({ x: mbTrackW / 2 + _nHalf, y: _nY2, r: MB_BUMPER_R + 3 });
 
   document.getElementById('marble-result').textContent    = '';
   document.getElementById('marble-start-btn').disabled    = false;
-  document.getElementById('marble-start-btn').textContent = '출 발 !';
+  document.getElementById('marble-start-btn').textContent = '출발!';
   document.getElementById('marble-skip-btn').disabled     = true;
 
   if (!marbleItems.length) {
@@ -934,7 +900,7 @@ function drawMarbleTrack(canvas) {
     ctx.fillRect(0, z.y1, W, z.y2 - z.y1);
   });
 
-  // 구역 구분선 + 레이블
+  // 구역 구분선 + 라벨
   ctx.font = '9px monospace';
   MB_ZONES.forEach((z, i) => {
     ctx.fillStyle  = 'rgba(255,255,255,0.14)';
@@ -955,7 +921,7 @@ function drawMarbleTrack(canvas) {
   ctx.beginPath(); ctx.moveTo(1, 0); ctx.lineTo(1, H); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(W - 1, 0); ctx.lineTo(W - 1, H); ctx.stroke();
 
-  // FINISH 라인
+  // FINISH ?쇱씤
   const exitY = H - 60;
   ctx.strokeStyle = '#ff6b35';
   ctx.lineWidth   = 2;
@@ -967,7 +933,7 @@ function drawMarbleTrack(canvas) {
   ctx.textAlign  = 'center';
   ctx.fillText('FINISH', W / 2, exitY - 6);
 
-  // 범퍼
+  // 踰뷀띁
   ctx.lineCap = 'round';
   marbleBumpers.forEach(seg => {
     ctx.lineWidth   = 12;
@@ -1028,14 +994,14 @@ function drawMarbleTrack(canvas) {
     return;
   }
 
-  // 탈락 순서 (상단)
+  // 이탈 순서 (상단)
   if (marbleExitOrder.length > 0) {
     ctx.fillStyle = '#555';
     ctx.font      = '10px Pretendard, sans-serif';
     ctx.textAlign = 'left';
     const names = marbleExitOrder.map((b, idx) =>
       idx === marbleExitOrder.length - 1 && marbleFinished
-        ? '[당첨] ' + b.menu.name : b.menu.name
+        ? '[우승] ' + b.menu.name : b.menu.name
     ).join(' > ');
     ctx.fillText(names, 8, 14);
   }
@@ -1058,7 +1024,7 @@ function drawMarbleTrack(canvas) {
     ctx.fillStyle = grad;
     ctx.fill();
 
-    // 이름 레이블
+    // 이름 라벨
     const rawName = b.menu.name;
     const labelText = rawName.length > 5 ? rawName.slice(0, 4) + '..' : rawName;
     ctx.font = 'bold 8px Pretendard, sans-serif';
@@ -1112,7 +1078,7 @@ function drawMinimap(minimap, wrap) {
     mCtx.fill();
   });
 
-  // FINISH 라인
+  // FINISH ?쇱씤
   const exitMY = offY + (MB_TRACK_H - 60) * scaleY;
   mCtx.strokeStyle = 'rgba(255,107,53,0.5)';
   mCtx.lineWidth   = 1;
@@ -1163,15 +1129,15 @@ function physicsStep() {
       b.vy = (b.vy / speed) * MAX_SPD;
     }
 
-    // 하단 좁은 구간(y>2800) 서브스텝: 회전 장애물↔고정 범퍼 터널링 방지
+    // 하단 좁은 구간(y>2800)에서는 서브스텝으로 관통 방지
     const SUBSTEPS = b.y > 2800 ? 5 : 1;
     for (let _sub = 0; _sub < SUBSTEPS; _sub++) {
       b.x += b.vx / SUBSTEPS;
       b.y += b.vy / SUBSTEPS;
 
-      // ── 충돌 해결: 제약 수집 → 쐐기 감지 → 단일 적용 ──
+      // 충돌 해결: 벽 처리, 접촉 수집, 끼임 감지 순으로 적용
 
-      // 1. 좌우 벽 충돌 (먼저 처리)
+      // 1. 醫뚯슦 踰?異⑸룎 (癒쇱? 泥섎━)
       if (b.x - b.r < 1) {
         b.x = 1 + b.r;
         b.vx = Math.abs(b.vx) * MB_RESTITUTION;
@@ -1224,7 +1190,7 @@ function physicsStep() {
         }
       });
 
-      // 3. 쐐기 감지: 서로 반대 방향으로 미는 접촉 쌍 존재 여부 확인
+      // 3. 끼임 감지: 서로 반대 방향으로 미는 접촉이 있는지 확인
       let wedged = false;
       outer: for (let i = 0; i < contacts.length; i++) {
         for (let j = i + 1; j < contacts.length; j++) {
@@ -1235,13 +1201,13 @@ function physicsStep() {
 
       contacts.sort((a, c) => c.depth - a.depth);
       if (wedged) {
-        // 쐐기: 각 접촉면 표면으로 위치 보정 후 위로 튕겨냄
+        // 끼였으면 각 접촉면 바깥으로 위치를 보정하고 튕겨낸다
         contacts.forEach(c => {
           b.x = c.cx + c.nx * (c.minD + 1);
           b.y = c.cy + c.ny * (c.minD + 1);
         });
-        b.vy = -(Math.abs(b.vy) + 5);           // 현재 속력 반전 + 추가 상향 속도
-        b.vx += (Math.random() - 0.5) * 4;      // 좌우 랜덤 분산 (무한 재끼임 방지)
+        b.vy = -(Math.abs(b.vy) + 5);           // 현재 중력을 뒤집고 추가 상향 속도 부여
+        b.vx += (Math.random() - 0.5) * 4;      // 좌우로 흩뜨려 무한 끼임 방지
         b._stuckTick = 0;
       } else {
         // 정상 충돌 해결
@@ -1251,7 +1217,7 @@ function physicsStep() {
             const tanY =  c.nx * c.rot.speed * c.armDist * 12;
             const relDot = (b.vx - tanX) * c.nx + (b.vy - tanY) * c.ny;
             if (relDot < 0) {
-              // 법선 성분만 반전(접선 보존) + 회전 팔 속도 전달
+              // 법선 성분만 반전하고 회전 접선 속도를 일부 전달
               b.vx -= (1 + MB_RESTITUTION) * relDot * c.nx;
               b.vy -= (1 + MB_RESTITUTION) * relDot * c.ny;
               b.vx += tanX * 0.3;
@@ -1260,7 +1226,7 @@ function physicsStep() {
           } else {
             const dot = b.vx * c.nx + b.vy * c.ny;
             if (dot < 0) {
-              // 법선 성분만 반전, 접선 성분 보존 → 자연스러운 바운스
+              // 법선 성분만 반전해 자연스럽게 튕기게 한다
               b.vx -= (1 + MB_RESTITUTION) * dot * c.nx;
               b.vy -= (1 + MB_RESTITUTION) * dot * c.ny;
             }
@@ -1270,12 +1236,12 @@ function physicsStep() {
         });
       }
 
-      // 4. 최종 벽 클램프
+      // 4. 최종 벽 재보정
       if (b.x - b.r < 1)     b.x = 1 + b.r;
       if (b.x + b.r > W - 1) b.x = W - 1 - b.r;
     } // end SUBSTEPS
 
-    // 끼임 감지 및 탈출 로직
+    // 움직임 감지 및 탈출 로직
     const _dy = b.y - b._prevY;
     b._prevY  = b.y;
     if (Math.abs(_dy) < 0.2) {
@@ -1299,9 +1265,9 @@ function physicsStep() {
     }
   });
 
-  // 5+6. 공-공 충돌 ↔ 장애물 보정을 3회 교차 반복 (다중 구슬 연쇄 관통 방지)
+  // 5+6. 구슬 간 충돌과 장애물 보정을 3회 반복
   for (let iter = 0; iter < 3; iter++) {
-    // 공-공 충돌
+    // 구슬 간 충돌
     for (let i = 0; i < active.length; i++) {
       for (let j = i + 1; j < active.length; j++) {
         const a = active[i], b = active[j];
@@ -1315,7 +1281,7 @@ function physicsStep() {
           const ov = (minD - dist) / 2;
           a.x -= nx * ov; a.y -= ny * ov;
           b.x += nx * ov; b.y += ny * ov;
-          // 첫 번째 반복에서만 속도 교환 (이후는 위치 보정만)
+          // 첫 번째 반복에서만 속도 교환, 이후에는 위치만 보정
           if (iter === 0) {
             const v1n = a.vx * nx + a.vy * ny;
             const v2n = b.vx * nx + b.vy * ny;
@@ -1329,7 +1295,7 @@ function physicsStep() {
       }
     }
 
-    // 장애물 보정 — 위치 + 속도 동시 보정 (장애물 쪽으로 향하는 속도 성분 제거)
+    // 장애물 보정: 위치와 속도를 함께 보정
     active.forEach(b => {
       if (b.exited) return;
 
@@ -1392,7 +1358,7 @@ function autoScrollToLast() {
 function startMarble() {
   if (marbleFinished) { initMarble(); return; }
   if (marbleRunning) return;
-  if (!marbleItems.length) { showToast('선택 가능한 메뉴가 없어요!', true); return; }
+  if (!marbleItems.length) { showToast('선택 가능한 메뉴가 없어요.', true); return; }
 
   marbleRunning = true;
   document.getElementById('marble-start-btn').disabled = true;
@@ -1411,7 +1377,7 @@ function startMarble() {
       marbleRunning  = false;
       marbleFinished = true;
       const winner = marbleExitOrder[marbleExitOrder.length - 1];
-      document.getElementById('marble-result').textContent    = winner.menu.name + ' 당첨!';
+      document.getElementById('marble-result').textContent    = winner.menu.name + ' 우승!';
       document.getElementById('marble-start-btn').disabled    = false;
       document.getElementById('marble-start-btn').textContent = '다시 하기';
       document.getElementById('marble-skip-btn').disabled     = true;
@@ -1441,13 +1407,14 @@ function skipMarble() {
   drawMinimap(minimap, wrap);
 
   const winner = marbleExitOrder[marbleExitOrder.length - 1];
-  document.getElementById('marble-result').textContent    = winner.menu.name + ' 당첨!';
+  document.getElementById('marble-result').textContent    = winner.menu.name + ' 우승!';
   document.getElementById('marble-start-btn').disabled    = false;
   document.getElementById('marble-start-btn').textContent = '다시 하기';
   document.getElementById('marble-skip-btn').disabled     = true;
   window.api.recordPick(winner.menu.name).then(() => loadHistory());
 }
 
-// ── Init ──
+// 초기화
 loadKakaoMapConfig();
 loadAll();
+

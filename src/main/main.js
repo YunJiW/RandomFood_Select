@@ -7,15 +7,21 @@ const RENDERER_DIR = path.join(__dirname, '../renderer');
 const PORT = 3000;
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
-  '.js':   'application/javascript',
-  '.css':  'text/css',
-  '.png':  'image/png',
-  '.jpg':  'image/jpeg',
-  '.svg':  'image/svg+xml',
-  '.ico':  'image/x-icon',
+  '.js': 'application/javascript',
+  '.css': 'text/css',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
 };
 
 let localServer;
+let db;
+let SQL;
+let mainWin;
+let serverUrl;
+
+const dbPath = path.join(app.getPath('userData'), 'lunch.db.json');
 
 function loadEnvFile() {
   const envPath = path.join(__dirname, '../../.env');
@@ -40,34 +46,35 @@ function loadEnvFile() {
   });
 }
 
+loadEnvFile();
+
+const kakaoRestApiKey = process.env.KAKAO_REST_API_KEY || '';
+const kakaoMapJsKey = process.env.KAKAO_MAP_JS_KEY || process.env.KAKAO_JAVASCRIPT_KEY || '';
+
 function startLocalServer() {
   return new Promise((resolve, reject) => {
     localServer = http.createServer((req, res) => {
       const urlPath = req.url === '/' ? '/index.html' : req.url.split('?')[0];
       const filePath = path.join(RENDERER_DIR, urlPath);
+
       fs.readFile(filePath, (err, data) => {
-        if (err) { res.writeHead(404); res.end('Not found'); return; }
+        if (err) {
+          res.writeHead(404);
+          res.end('Not found');
+          return;
+        }
+
         const ext = path.extname(filePath);
         res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
         res.end(data);
       });
     });
+
     localServer.listen(PORT, '127.0.0.1', () => resolve(`http://localhost:${PORT}`));
     localServer.on('error', reject);
   });
 }
 
-let db;
-let SQL;
-let mainWin;
-let serverUrl;
-const dbPath = path.join(app.getPath('userData'), 'lunch.db.json');
-loadEnvFile();
-const kakaoRestApiKey = process.env.KAKAO_REST_API_KEY || '';
-const kakaoMapJsKey = process.env.KAKAO_MAP_JS_KEY || process.env.KAKAO_JAVASCRIPT_KEY || '';
-
-// sql.js는 메모리 DB → 앱 종료 시 JSON으로 직렬화해서 저장
-// 시작 시 JSON → 메모리 DB 복원
 async function initDB() {
   const initSqlJs = require('sql.js');
   SQL = await initSqlJs({
@@ -76,17 +83,25 @@ async function initDB() {
 
   if (fs.existsSync(dbPath)) {
     const saved = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
-    // 저장된 데이터로 복원
+
     db = new SQL.Database();
     createTables();
-    // 메뉴 복원
-    const insertMenu = db.prepare('INSERT OR IGNORE INTO menus (id, name, category, excluded, favorite, created_at) VALUES (?,?,?,?,?,?)');
-    (saved.menus || []).forEach(m => insertMenu.run([m.id, m.name, m.category, m.excluded, m.favorite || 0, m.created_at]));
+
+    const insertMenu = db.prepare(
+      'INSERT OR IGNORE INTO menus (id, name, category, excluded, favorite, created_at) VALUES (?,?,?,?,?,?)'
+    );
+    (saved.menus || []).forEach(menu => {
+      insertMenu.run([menu.id, menu.name, menu.category, menu.excluded, menu.favorite || 0, menu.created_at]);
+    });
     insertMenu.free();
-    // 히스토리 복원
-    const insertHist = db.prepare('INSERT OR IGNORE INTO history (id, menu_name, picked_at) VALUES (?,?,?)');
-    (saved.history || []).forEach(h => insertHist.run([h.id, h.menu_name, h.picked_at]));
-    insertHist.free();
+
+    const insertHistory = db.prepare(
+      'INSERT OR IGNORE INTO history (id, menu_name, picked_at) VALUES (?,?,?)'
+    );
+    (saved.history || []).forEach(history => {
+      insertHistory.run([history.id, history.menu_name, history.picked_at]);
+    });
+    insertHistory.free();
   } else {
     db = new SQL.Database();
     createTables();
@@ -104,6 +119,7 @@ function createTables() {
       favorite INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now','localtime'))
     );
+
     CREATE TABLE IF NOT EXISTS history (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       menu_name TEXT NOT NULL,
@@ -114,18 +130,28 @@ function createTables() {
 
 function insertSamples() {
   const samples = [
-    ['김치찌개','한식'],['된장찌개','한식'],['비빔밥','한식'],
-    ['삼겹살','한식'],['냉면','한식'],['짜장면','중식'],
-    ['짬뽕','중식'],['탕수육','중식'],['스파게티','양식'],
-    ['피자','양식'],['초밥','일식'],['라멘','일식'],['돈까스','일식'],
+    ['김치찌개', '한식'],
+    ['된장찌개', '한식'],
+    ['비빔밥', '한식'],
+    ['삼겹살', '한식'],
+    ['냉면', '한식'],
+    ['짜장면', '중식'],
+    ['짬뽕', '중식'],
+    ['탕수육', '중식'],
+    ['파스타', '양식'],
+    ['피자', '양식'],
+    ['초밥', '일식'],
+    ['라멘', '일식'],
+    ['돈까스', '일식'],
   ];
+
   const stmt = db.prepare('INSERT OR IGNORE INTO menus (name, category) VALUES (?,?)');
-  samples.forEach(([n, c]) => stmt.run([n, c]));
+  samples.forEach(([name, category]) => stmt.run([name, category]));
   stmt.free();
 }
 
 function saveDB() {
-  const menus   = query('SELECT * FROM menus');
+  const menus = query('SELECT * FROM menus');
   const history = query('SELECT * FROM history');
   fs.writeFileSync(dbPath, JSON.stringify({ menus, history }), 'utf8');
 }
@@ -146,7 +172,10 @@ function run(sql, params = []) {
 
 function createWindow() {
   mainWin = new BrowserWindow({
-    width: 900, height: 700, minWidth: 700, minHeight: 600,
+    width: 900,
+    height: 700,
+    minWidth: 700,
+    minHeight: 600,
     webPreferences: {
       preload: path.join(__dirname, '../preload/preload.js'),
       contextIsolation: true,
@@ -155,6 +184,7 @@ function createWindow() {
     frame: false,
     backgroundColor: '#0f0f0f',
   });
+
   mainWin.loadURL(serverUrl);
   if (!app.isPackaged) mainWin.webContents.openDevTools({ mode: 'right' });
 }
@@ -172,15 +202,12 @@ app.on('before-quit', () => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
+
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
 });
 
-// ── IPC 핸들러 ──────────────────────────────────────────
-
-ipcMain.handle('get-menus', () =>
-  query('SELECT * FROM menus ORDER BY category, name')
-);
+ipcMain.handle('get-menus', () => query('SELECT * FROM menus ORDER BY category, name'));
 
 ipcMain.handle('add-menu', (_, { name, category }) => {
   try {
@@ -196,7 +223,7 @@ ipcMain.handle('update-menu', (_, { id, name, category }) => {
     run('UPDATE menus SET name=?, category=? WHERE id=?', [name.trim(), category, id]);
     return { success: true };
   } catch {
-    return { success: false, error: '수정 실패: 중복된 이름이 있습니다.' };
+    return { success: false, error: '수정 실패: 중복된 메뉴 이름입니다.' };
   }
 });
 
@@ -212,15 +239,14 @@ ipcMain.handle('toggle-exclude', (_, id) => {
 
 ipcMain.handle('pick-random', () => {
   const available = query('SELECT * FROM menus WHERE excluded=0');
-  if (available.length === 0) return { success: false, error: '선택 가능한 메뉴가 없습니다.' };
+  if (!available.length) return { success: false, error: '선택 가능한 메뉴가 없습니다.' };
+
   const picked = available[Math.floor(Math.random() * available.length)];
-  run(`INSERT INTO history (menu_name, picked_at) VALUES (?, datetime('now','localtime'))`, [picked.name]);
+  run('INSERT INTO history (menu_name, picked_at) VALUES (?, datetime(\'now\',\'localtime\'))', [picked.name]);
   return { success: true, menu: picked };
 });
 
-ipcMain.handle('get-history', () =>
-  query('SELECT * FROM history ORDER BY picked_at DESC LIMIT 30')
-);
+ipcMain.handle('get-history', () => query('SELECT * FROM history ORDER BY picked_at DESC LIMIT 30'));
 
 ipcMain.handle('clear-history', () => {
   run('DELETE FROM history');
@@ -233,7 +259,7 @@ ipcMain.handle('toggle-favorite', (_, id) => {
 });
 
 ipcMain.handle('record-pick', (_, menuName) => {
-  run(`INSERT INTO history (menu_name, picked_at) VALUES (?, datetime('now','localtime'))`, [menuName]);
+  run('INSERT INTO history (menu_name, picked_at) VALUES (?, datetime(\'now\',\'localtime\'))', [menuName]);
   return { success: true };
 });
 
@@ -309,12 +335,13 @@ ipcMain.on('maximize-app', () => {
 
 ipcMain.on('resize-for-tab', (_, tab) => {
   if (!mainWin || mainWin.isMaximized()) return;
-  const [w] = mainWin.getSize();
+
+  const [width] = mainWin.getSize();
   if (tab === 'marble') {
     mainWin.setMinimumSize(700, 700);
-    mainWin.setSize(w, Math.max(mainWin.getSize()[1], 900), true);
+    mainWin.setSize(width, Math.max(mainWin.getSize()[1], 900), true);
   } else {
     mainWin.setMinimumSize(700, 600);
-    mainWin.setSize(w, 700, true);
+    mainWin.setSize(width, 700, true);
   }
 });
