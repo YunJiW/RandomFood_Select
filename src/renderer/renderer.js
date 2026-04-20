@@ -349,18 +349,12 @@ function hideMapPanel() {
 }
 
 function getCurrentPosition() {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error('이 환경에서는 위치 정보를 사용할 수 없습니다.'));
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(resolve, reject, {
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 0,
+  return fetch('https://ipapi.co/json/')
+    .then(r => r.json())
+    .then(data => {
+      if (!data.latitude) throw new Error('IP 위치 조회 실패');
+      return { coords: { latitude: data.latitude, longitude: data.longitude, accuracy: 5000 } };
     });
-  });
 }
 
 function loadKakaoMapSdk(appKey) {
@@ -373,7 +367,12 @@ function loadKakaoMapSdk(appKey) {
     script.onload = () => {
       window.kakao.maps.load(() => resolve(window.kakao.maps));
     };
-    script.onerror = () => reject(new Error('Kakao 지도 SDK를 불러오지 못했습니다.'));
+    script.onerror = (e) => {
+      kakaoMapScriptPromise = null; // 실패 시 캐시 초기화 → 재시도 가능
+      document.head.removeChild(script);
+      console.error('[Kakao SDK] 스크립트 로드 실패:', e);
+      reject(new Error('Kakao 지도 SDK를 불러오지 못했습니다. 키와 등록 도메인을 확인하세요.'));
+    };
     document.head.appendChild(script);
   });
 

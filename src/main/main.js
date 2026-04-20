@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, session } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
@@ -59,7 +59,8 @@ function startLocalServer() {
 
 let db;
 let SQL;
-let mainWin;  // ← 모듈 레벨로 선언
+let mainWin;
+let serverUrl;
 const dbPath = path.join(app.getPath('userData'), 'lunch.db.json');
 loadEnvFile();
 const kakaoRestApiKey = process.env.KAKAO_REST_API_KEY || '';
@@ -143,7 +144,7 @@ function run(sql, params = []) {
   saveDB();
 }
 
-function createWindow(url) {
+function createWindow() {
   mainWin = new BrowserWindow({
     width: 900, height: 700, minWidth: 700, minHeight: 600,
     webPreferences: {
@@ -154,18 +155,14 @@ function createWindow(url) {
     frame: false,
     backgroundColor: '#0f0f0f',
   });
-  mainWin.loadURL(url);
-  mainWin.webContents.openDevTools({ mode: 'right' });
+  mainWin.loadURL(serverUrl);
+  if (!app.isPackaged) mainWin.webContents.openDevTools({ mode: 'right' });
 }
 
 app.whenReady().then(async () => {
-  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
-    callback(permission === 'geolocation');
-  });
-
-  const url = await startLocalServer();
+  serverUrl = await startLocalServer();
   await initDB();
-  createWindow(url);
+  createWindow();
 });
 
 app.on('before-quit', () => {
