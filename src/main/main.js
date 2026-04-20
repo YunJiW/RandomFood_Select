@@ -15,6 +15,19 @@ const MIME_TYPES = {
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
 };
+const KAKAO_CATEGORY_ALIASES = {
+  FD6: ['음식점', '식당', '맛집', '밥집', '레스토랑'],
+  CE7: ['카페', '커피', '커피숍', '디저트'],
+  CS2: ['편의점'],
+  AD5: ['숙소', '호텔', '모텔', '펜션', '게스트하우스'],
+  MT1: ['마트', '슈퍼', '슈퍼마켓'],
+  PM9: ['약국'],
+  HP8: ['병원'],
+  OL7: ['주유소'],
+  PK6: ['주차장'],
+  SW8: ['지하철역', '지하철'],
+  BK9: ['은행'],
+};
 
 let localServer;
 let db;
@@ -171,6 +184,101 @@ function run(sql, params = []) {
   saveDB();
 }
 
+function mapPlaces(documents = []) {
+  return documents.map(place => ({
+    id: place.id,
+    name: place.place_name,
+    category: place.category_name,
+    address: place.road_address_name || place.address_name,
+    phone: place.phone,
+    distance: place.distance ? Number(place.distance) : null,
+    x: Number(place.x),
+    y: Number(place.y),
+    url: place.place_url,
+  }));
+}
+
+function dedupePlaces(places = []) {
+  const seen = new Set();
+  return places.filter(place => {
+    if (!place?.id || seen.has(place.id)) return false;
+    seen.add(place.id);
+    return true;
+  });
+}
+
+function resolveCategoryGroupCode(query) {
+  const normalized = String(query || '').trim().toLowerCase().replace(/\s+/g, '');
+  if (!normalized) return null;
+
+  for (const [code, aliases] of Object.entries(KAKAO_CATEGORY_ALIASES)) {
+    if (aliases.some(alias => alias.toLowerCase().replace(/\s+/g, '') === normalized)) {
+      return code;
+    }
+  }
+
+  return null;
+}
+
+async function requestKakaoLocal(pathname, params) {
+  const response = await fetch(`https://dapi.kakao.com/v2/local/${pathname}.json?${params.toString()}`, {
+    headers: {
+      Authorization: `KakaoAK ${kakaoRestApiKey}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`카카오 장소 검색 실패 (${response.status})`);
+  }
+
+  return response.json();
+}
+
+async function searchKakaoByCategory({ categoryCode, x, y, radius, size }) {
+  const pageSize = Math.min(Math.max(Number(size) || 15, 1), 15);
+  const maxRadius = Math.min(Math.max(Number(radius) || 3000, 1), 20000);
+  const maxPages = 3;
+  const allPlaces = [];
+  let page = 1;
+  let isEnd = false;
+
+  while (!isEnd && page <= maxPages) {
+    const params = new URLSearchParams({
+      category_group_code: categoryCode,
+      x: String(x),
+      y: String(y),
+      radius: String(maxRadius),
+      size: String(pageSize),
+      sort: 'distance',
+      page: String(page),
+    });
+
+    const data = await requestKakaoLocal('search/category', params);
+    allPlaces.push(...mapPlaces(data.documents || []));
+    isEnd = Boolean(data.meta?.is_end);
+    page += 1;
+  }
+
+  return dedupePlaces(allPlaces);
+}
+
+async function searchKakaoByKeyword({ query, x, y, radius, size }) {
+  const params = new URLSearchParams({
+    query,
+    sort: 'distance',
+    size: String(Math.min(Math.max(Number(size) || 5, 1), 15)),
+  });
+
+  if (Number.isFinite(Number(x)) && Number.isFinite(Number(y))) {
+    params.set('x', String(x));
+    params.set('y', String(y));
+    params.set('radius', String(Math.min(Math.max(Number(radius) || 2000, 1), 20000)));
+  }
+
+  const data = await requestKakaoLocal('search/keyword', params);
+  return mapPlaces(data.documents || []);
+}
+
 function getWindowsNativePosition() {
   return new Promise((resolve, reject) => {
     if (process.platform !== 'win32') {
@@ -182,7 +290,7 @@ function getWindowsNativePosition() {
       'Add-Type -AssemblyName System.Device',
       '$watcher = New-Object System.Device.Location.GeoCoordinateWatcher([System.Device.Location.GeoPositionAccuracy]::Default)',
       '$watcher.Start()',
-      'for ($i = 0; $i -lt 20; $i++) {',
+      'for ($i = 0; $i -lt 8; $i++) {',
       '  Start-Sleep -Milliseconds 500',
       '  if ($watcher.Position.Location.IsUnknown -eq $false) { break }',
       '}',
@@ -205,7 +313,7 @@ function getWindowsNativePosition() {
     execFile(
       'powershell.exe',
       ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', psScript],
-      { windowsHide: true, timeout: 15000 },
+      { windowsHide: true, timeout: 7000 },
       (error, stdout, stderr) => {
         if (error) {
           reject(new Error(stderr?.trim() || error.message || 'Windows 위치 조회 실행에 실패했습니다.'));
@@ -360,43 +468,18 @@ ipcMain.handle('search-kakao-places', async (_, { query, x, y, radius = 2000, si
     return { success: false, error: '검색어가 비어 있습니다.' };
   }
 
-  const params = new URLSearchParams({
-    query: keyword,
-    sort: 'distance',
-    size: String(Math.min(Math.max(Number(size) || 5, 1), 15)),
-  });
-
-  if (Number.isFinite(Number(x)) && Number.isFinite(Number(y))) {
-    params.set('x', String(x));
-    params.set('y', String(y));
-    params.set('radius', String(Math.min(Math.max(Number(radius) || 2000, 1), 20000)));
-  }
-
   try {
-    const response = await fetch(`https://dapi.kakao.com/v2/local/search/keyword.json?${params.toString()}`, {
-      headers: {
-        Authorization: `KakaoAK ${kakaoRestApiKey}`,
-      },
-    });
+    const categoryCode = resolveCategoryGroupCode(keyword);
+    const hasCenter = Number.isFinite(Number(x)) && Number.isFinite(Number(y));
+    const places = categoryCode && hasCenter
+      ? await searchKakaoByCategory({ categoryCode, x: Number(x), y: Number(y), radius, size: 15 })
+      : await searchKakaoByKeyword({ query: keyword, x, y, radius, size });
 
-    if (!response.ok) {
-      return { success: false, error: `카카오 장소 검색 실패 (${response.status})` };
-    }
-
-    const data = await response.json();
     return {
       success: true,
-      places: (data.documents || []).map(place => ({
-        id: place.id,
-        name: place.place_name,
-        category: place.category_name,
-        address: place.road_address_name || place.address_name,
-        phone: place.phone,
-        distance: place.distance ? Number(place.distance) : null,
-        x: Number(place.x),
-        y: Number(place.y),
-        url: place.place_url,
-      })),
+      searchMode: categoryCode && hasCenter ? 'category' : 'keyword',
+      categoryCode: categoryCode || null,
+      places,
     };
   } catch (error) {
     return { success: false, error: error.message || '카카오 장소 검색 중 오류가 발생했습니다.' };

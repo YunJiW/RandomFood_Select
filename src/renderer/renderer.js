@@ -452,30 +452,28 @@ function getIpBasedPosition() {
     });
 }
 
+function shouldPreferNativePosition() {
+  return Boolean(window.api?.getNativePosition);
+}
+
 async function getBestAvailablePosition() {
+  if (shouldPreferNativePosition()) {
+    try {
+      return await window.api.getNativePosition();
+    } catch (nativeError) {
+      console.warn('[Map] 네이티브 위치 정보를 가져오지 못해 IP 위치로 대체합니다:', nativeError);
+      const ipPosition = await getIpBasedPosition();
+      return {
+        ...ipPosition,
+        fallbackReason: nativeError.message,
+      };
+    }
+  }
+
   try {
     return await getBrowserGeolocationPosition();
   } catch (geoError) {
-    console.warn('[Map] 브라우저 위치 정보를 가져오지 못했습니다. 네이티브 위치 조회를 시도합니다:', geoError);
-
-    if (window.api.getNativePosition) {
-      try {
-        const nativePosition = await window.api.getNativePosition();
-        return {
-          ...nativePosition,
-          fallbackReason: geoError.message,
-        };
-      } catch (nativeError) {
-        console.warn('[Map] 네이티브 위치 정보를 가져오지 못해 IP 위치로 대체합니다:', nativeError);
-        const ipPosition = await getIpBasedPosition();
-        return {
-          ...ipPosition,
-          fallbackReason: `${geoError.message} / ${nativeError.message}`,
-        };
-      }
-    }
-
-    console.warn('[Map] 네이티브 위치 API가 없어 IP 위치로 대체합니다.');
+    console.warn('[Map] 브라우저 위치 정보를 가져오지 못해 IP 위치로 대체합니다:', geoError);
     const ipPosition = await getIpBasedPosition();
     return {
       ...ipPosition,
@@ -515,7 +513,7 @@ function loadKakaoMapSdk(appKey) {
   return kakaoMapScriptPromise;
 }
 
-async function testCurrentLocationMap() {
+async function testCurrentLocationMap(options = {}) {
   showMapPanel();
   const appKey = (kakaoMapConfig?.jsKey || '').trim();
 
@@ -568,25 +566,40 @@ async function testCurrentLocationMap() {
     locationMeta.textContent = `위도 ${lat.toFixed(6)} / 경도 ${lng.toFixed(6)} · ${sourceLabel}`;
     clearPlaceMarkers();
     renderMapSearchResults([]);
-    setMapStatus(position.source === 'ip'
+    const loadedMessage = position.source === 'ip'
       ? `정확한 현재 위치를 가져오지 못해 IP 기반 대략 위치로 지도를 불러왔습니다.${position.fallbackReason ? ` (${position.fallbackReason})` : ''}`
       : position.source === 'native'
         ? `브라우저 위치 조회는 실패했지만 Windows 위치 서비스로 지도를 불러왔습니다.${position.fallbackReason ? ` (${position.fallbackReason})` : ''}`
-      : '실제 기기 위치 기반 지도를 불러왔습니다.');
+      : '실제 기기 위치 기반 지도를 불러왔습니다.';
+    setMapStatus(loadedMessage);
     showToast(position.source === 'ip'
       ? 'IP 기반 대략 위치로 지도를 불러왔습니다.'
       : position.source === 'native'
         ? 'Windows 위치 서비스로 지도를 불러왔습니다.'
       : '실제 기기 위치로 지도를 불러왔습니다.');
+
+    const keywordInput = document.getElementById('map-search-keyword');
+    if (keywordInput && !keywordInput.value.trim()) {
+      keywordInput.value = '음식점';
+    }
+
+    if (!options.skipAutoSearch) {
+      await searchPlacesOnMap({
+        keyword: keywordInput?.value.trim() || '음식점',
+        silentOnMapInit: true,
+        baseStatusMessage: loadedMessage,
+      });
+    }
   } catch (error) {
     setMapStatus(error.message || '현재 위치 지도를 불러오지 못했습니다.', true);
     showToast(error.message || '현재 위치 지도를 불러오지 못했습니다.', true);
   }
 }
 
-async function searchPlacesOnMap() {
+async function searchPlacesOnMap(options = {}) {
   showMapPanel();
-  const keyword = document.getElementById('map-search-keyword').value.trim();
+  const keywordInput = document.getElementById('map-search-keyword');
+  const keyword = (options.keyword ?? keywordInput?.value ?? '').trim();
 
   if (!keyword) {
     setMapStatus('검색어를 먼저 입력해 주세요.', true);
@@ -596,7 +609,7 @@ async function searchPlacesOnMap() {
 
   try {
     if (!kakaoMapInstance) {
-      await testCurrentLocationMap();
+      await testCurrentLocationMap({ skipAutoSearch: true });
       if (!kakaoMapInstance) return;
     }
 
@@ -636,8 +649,14 @@ async function searchPlacesOnMap() {
 
     kakaoMapInstance.setBounds(bounds);
     updateMapStatusWithCenter(center.getLat(), center.getLng(), `"${keyword}" ${result.places.length}건`);
-    setMapStatus(`"${keyword}" 검색 결과 ${result.places.length}건을 표시했습니다.`);
-    showToast(`"${keyword}" 검색 결과를 표시했습니다.`);
+    const searchModeLabel = result.searchMode === 'category' ? '카테고리 검색' : '키워드 검색';
+    const resultMessage = `"${keyword}" ${searchModeLabel} 결과 ${result.places.length}건을 표시했습니다.`;
+    setMapStatus(options.silentOnMapInit && options.baseStatusMessage
+      ? `${options.baseStatusMessage} · ${resultMessage}`
+      : resultMessage);
+    if (!options.silentOnMapInit) {
+      showToast(`"${keyword}" 검색 결과를 표시했습니다.`);
+    }
   } catch (error) {
     setMapStatus(error.message || '장소 검색에 실패했습니다.', true);
     showToast(error.message || '장소 검색에 실패했습니다.', true);
