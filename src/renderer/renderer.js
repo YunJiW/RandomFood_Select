@@ -26,7 +26,6 @@ document.querySelectorAll('.tab').forEach(tab => {
 
 document.getElementById('new-name').addEventListener('keydown', e => { if (e.key === 'Enter') addMenu(); });
 document.getElementById('wheel-new-name').addEventListener('keydown', e => { if (e.key === 'Enter') addMenuFromWheel(); });
-document.getElementById('kakao-js-key').addEventListener('keydown', e => { if (e.key === 'Enter') testCurrentLocationMap(); });
 document.getElementById('map-search-keyword').addEventListener('keydown', e => { if (e.key === 'Enter') searchPlacesOnMap(); });
 
 // ── 카테고리 필터 ──
@@ -74,8 +73,6 @@ async function loadAll() { await loadMenus(); await loadHistory(); }
 async function loadKakaoMapConfig() {
   if (!window.api.getKakaoMapConfig) return;
   kakaoMapConfig = await window.api.getKakaoMapConfig();
-  const keyInput = document.getElementById('kakao-js-key');
-  if (keyInput && kakaoMapConfig?.jsKey) keyInput.value = kakaoMapConfig.jsKey;
 }
 
 async function loadMenus() {
@@ -413,6 +410,47 @@ function getCurrentPosition() {
     });
 }
 
+function getBrowserPosition() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error('브라우저 위치 정보를 사용할 수 없습니다.'));
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0,
+    });
+  });
+}
+
+function getIpBasedPosition() {
+  return fetch('https://ipapi.co/json/')
+    .then(r => r.json())
+    .then(data => {
+      if (!data.latitude) throw new Error('IP 위치 조회 실패');
+      return {
+        coords: {
+          latitude: data.latitude,
+          longitude: data.longitude,
+          accuracy: 5000,
+        },
+        source: 'ip',
+      };
+    });
+}
+
+async function getPreferredCurrentPosition() {
+  try {
+    const position = await getBrowserPosition();
+    return { ...position, source: 'geolocation' };
+  } catch (error) {
+    console.warn('[Location] geolocation failed, falling back to IP lookup:', error);
+    return getIpBasedPosition();
+  }
+}
+
 function loadKakaoMapSdk(appKey) {
   if (window.kakao?.maps) return Promise.resolve(window.kakao.maps);
   if (kakaoMapScriptPromise) return kakaoMapScriptPromise;
@@ -446,8 +484,7 @@ function loadKakaoMapSdk(appKey) {
 
 async function testCurrentLocationMap() {
   showMapPanel();
-  const keyInput = document.getElementById('kakao-js-key');
-  const appKey = keyInput.value.trim();
+  const appKey = (kakaoMapConfig?.jsKey || '').trim();
 
   if (!appKey) {
     setMapStatus('Kakao JavaScript 키를 먼저 입력해 주세요.', true);
@@ -459,7 +496,7 @@ async function testCurrentLocationMap() {
     setMapStatus('현재 위치와 Kakao 지도를 불러오는 중입니다...');
     const [maps, position] = await Promise.all([
       loadKakaoMapSdk(appKey),
-      getCurrentPosition(),
+      getPreferredCurrentPosition(),
     ]);
 
     const lat = position.coords.latitude;
@@ -489,11 +526,16 @@ async function testCurrentLocationMap() {
 
     kakaoMapInstance.relayout();
     kakaoMapInstance.setCenter(center);
-    locationMeta.textContent = `위도 ${lat.toFixed(6)} / 경도 ${lng.toFixed(6)}`;
+    const sourceLabel = position.source === 'ip' ? 'IP 기반 대략 위치' : '현재 위치';
+    locationMeta.textContent = `위도 ${lat.toFixed(6)} / 경도 ${lng.toFixed(6)} · ${sourceLabel}`;
     clearPlaceMarkers();
     renderMapSearchResults([]);
-    setMapStatus('현재 위치 기반 지도를 불러왔습니다.');
-    showToast('현재 위치 지도를 불러왔습니다.');
+    setMapStatus(position.source === 'ip'
+      ? '정확한 현재 위치를 가져오지 못해 IP 기반 대략 위치로 지도를 불러왔습니다.'
+      : '현재 위치 기반 지도를 불러왔습니다.');
+    showToast(position.source === 'ip'
+      ? 'IP 기반 대략 위치로 지도를 불러왔습니다.'
+      : '현재 위치 지도를 불러왔습니다.');
   } catch (error) {
     setMapStatus(error.message || '현재 위치 지도를 불러오지 못했습니다.', true);
     showToast(error.message || '현재 위치 지도를 불러오지 못했습니다.', true);
