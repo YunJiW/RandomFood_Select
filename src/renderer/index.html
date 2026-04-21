@@ -8,6 +8,7 @@
 </head>
 <body>
 
+<!-- 사용자 지정 타이틀바 -->
 <div id="titlebar">
   <span>랜덤 푸드 셀렉트</span>
   <div class="win-btns">
@@ -17,7 +18,9 @@
   </div>
 </div>
 
+<!-- 메인 앱 레이아웃 -->
 <div id="app">
+  <!-- 메뉴 선택, 룰렛, 지도 테스트가 들어가는 왼쪽 영역 -->
   <div id="left">
     <div id="tabs">
       <div class="tab active" data-tab="pick">랜덤 뽑기</div>
@@ -109,6 +112,7 @@
     </div>
   </div>
 
+  <!-- 최근 기록과 통계를 보여주는 오른쪽 패널 -->
   <div id="right">
     <div class="panel-header">
       <div class="panel-tabs">
@@ -122,6 +126,7 @@
   </div>
 </div>
 
+<!-- 메뉴 수정 모달 -->
 <div id="modal-overlay">
   <div id="modal">
     <h3>메뉴 수정</h3>
@@ -137,6 +142,7 @@
   </div>
 </div>
 
+<!-- 카카오 지도와 장소 검색 패널 -->
 <div id="map-test-panel" class="map-test-panel">
   <div class="map-test-header">
     <div>
@@ -162,6 +168,7 @@
   <div id="map-search-results" class="map-search-results"></div>
 </div>
 
+<!-- 현재 위치 사용 여부를 처음 확인하는 모달 -->
 <div id="map-consent-modal" class="map-consent-modal">
   <div class="map-consent-dialog">
     <div class="map-consent-title">현재 위치 사용</div>

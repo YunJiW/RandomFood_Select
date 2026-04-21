@@ -1,5 +1,6 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+// 메인 프로세스의 IPC 기능을 렌더러에 안전하게 노출한다.
 contextBridge.exposeInMainWorld('api', {
   getMenus:      ()           => ipcRenderer.invoke('get-menus'),
   addMenu:       (data)       => ipcRenderer.invoke('add-menu', data),

@@ -1,15 +1,18 @@
+// 렌더러 전역 상태
 let menus     = [];
 let history   = [];
 let weights   = {};   // { menuId: number }
 let editingId = null;
 let favOnly   = false;
 const selectedCats = new Set(['한식','중식','일식','양식','분식','기타']);
+// 카카오 지도 관련 상태
 let kakaoMapConfig = null;
 let kakaoMapScriptPromise = null;
 let kakaoMapInstance = null;
 let kakaoMapMarker = null;
 let kakaoPlaceMarkers = [];
 let kakaoPlaceInfoWindow = null;
+// 위치 사용 동의 상태는 localStorage에 저장해 재사용한다.
 const MAP_LOCATION_CONSENT_KEY = 'map-location-consent';
 let mapConsentResolver = null;
 
@@ -72,11 +75,13 @@ function showPanel(name) {
 // 데이터 로드
 async function loadAll() { await loadMenus(); await loadHistory(); }
 
+// 메인 프로세스에서 내려준 카카오 지도 설정값을 읽는다.
 async function loadKakaoMapConfig() {
   if (!window.api.getKakaoMapConfig) return;
   kakaoMapConfig = await window.api.getKakaoMapConfig();
 }
 
+// 메뉴 목록을 다시 읽고 연결된 화면을 모두 갱신한다.
 async function loadMenus() {
   menus = await window.api.getMenus();
   menus.forEach(m => { if (weights[m.id] === undefined) weights[m.id] = 1; });
@@ -90,6 +95,7 @@ async function loadMenus() {
 // 필터 적용된 메뉴 목록
 function getCooldownDays() { return parseInt(document.getElementById('cooldown-select').value) || 0; }
 
+// 최근 n일 내에 뽑힌 메뉴 이름 집합을 만든다.
 function getRecentlyPickedNames() {
   const days = getCooldownDays();
   if (!days) return new Set();
@@ -97,6 +103,7 @@ function getRecentlyPickedNames() {
   return new Set(history.filter(h => new Date(h.picked_at) >= cutoff).map(h => h.menu_name));
 }
 
+// 제외, 즐겨찾기, 카테고리, 쿨다운 조건을 한 번에 적용한다.
 function getFilteredMenus() {
   let list = menus.filter(m => !m.excluded);
   if (favOnly) list = list.filter(m => m.favorite);
@@ -106,6 +113,7 @@ function getFilteredMenus() {
   return list;
 }
 
+// Pick 탭의 메뉴 목록을 렌더링한다.
 function renderMenus() {
   const list = document.getElementById('pick-menu-list');
   if (!menus.length) { list.innerHTML = '<div class="empty-state">등록된 메뉴가 없습니다.<br>아래에서 메뉴를 추가해 주세요.</div>'; return; }
@@ -121,6 +129,7 @@ function renderMenus() {
     </div>`).join('');
 }
 
+// 현재 필터 조건을 요약해 상태 문구로 표시한다.
 function updatePickInfo() {
   const filtered = getFilteredMenus();
   const total    = menus.filter(m => !m.excluded).length;
@@ -142,6 +151,7 @@ function getActiveItems() {
 }
 function totalWeight(items) { return items.reduce((s, m) => s + m.weight, 0); }
 
+// 룰렛용 가중치 편집 목록을 그린다.
 function renderWeightList() {
   const list   = document.getElementById('weight-list');
   const active = getActiveItems();
@@ -170,12 +180,14 @@ function renderWeightList() {
   }).join('');
 }
 
+// 가중치를 1~99 범위에서 증감한다.
 function adjustWeight(id, delta) {
   weights[id] = Math.min(99, Math.max(1, (weights[id] || 1) + delta));
   renderWeightList();
   drawWheel(wheelAngle);
 }
 
+// 직접 입력한 가중치를 1~99 범위로 반영한다.
 function setWeight(id, val) {
   const n = parseInt(val);
   if (isNaN(n) || n < 1) return;
@@ -184,6 +196,7 @@ function setWeight(id, val) {
   drawWheel(wheelAngle);
 }
 
+// 모든 메뉴 가중치를 기본값으로 되돌린다.
 function resetWeights() {
   menus.forEach(m => { weights[m.id] = 1; });
   renderWeightList();
@@ -224,6 +237,7 @@ async function toggleExclude(id) { await window.api.toggleExclude(id); await loa
 
 async function toggleFavorite(id) { await window.api.toggleFavorite(id); await loadMenus(); }
 
+// 수정 모달을 열고 현재 메뉴 값을 채운다.
 function openEdit(id) {
   editingId = id;
   const menu = menus.find(m => m.id === id);
@@ -235,6 +249,7 @@ function openEdit(id) {
 
 function closeModal() { document.getElementById('modal-overlay').classList.remove('show'); editingId = null; }
 
+// 수정 모달에서 입력한 값을 저장한다.
 async function saveEdit() {
   const name     = document.getElementById('edit-name').value.trim();
   const category = document.getElementById('edit-category').value;
@@ -327,6 +342,7 @@ function renderStats() {
 
 // Toast
 let toastTimer;
+// 하단 토스트 메시지를 잠시 표시한다.
 function showToast(msg, isError = false) {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -336,36 +352,44 @@ function showToast(msg, isError = false) {
   toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
 }
 
+// 지도 패널의 상태 문구를 갱신한다.
 function setMapStatus(message, isError = false) {
   const status = document.getElementById('map-status');
   status.textContent = message;
   status.style.color = isError ? 'var(--danger)' : 'var(--muted)';
 }
 
+// 지도 패널을 연다.
 function showMapPanel() {
   document.getElementById('map-test-panel').classList.add('show');
 }
 
+// 지도 패널을 닫는다.
 function hideMapPanel() {
   document.getElementById('map-test-panel').classList.remove('show');
 }
 
+// 사용자가 체크박스로 현재 위치 사용을 허용했는지 확인한다.
 function hasLocationConsent() {
   return document.getElementById('map-location-consent')?.checked === true;
 }
 
+// 위치 사용 허용/거부가 한 번이라도 저장되었는지 확인한다.
 function hasStoredLocationConsentDecision() {
   return window.localStorage.getItem(MAP_LOCATION_CONSENT_KEY) !== null;
 }
 
+// 첫 사용 시 표시할 위치 동의 모달을 연다.
 function showMapConsentModal() {
   document.getElementById('map-consent-modal')?.classList.add('show');
 }
 
+// 위치 동의 모달을 닫는다.
 function hideMapConsentModal() {
   document.getElementById('map-consent-modal')?.classList.remove('show');
 }
 
+// 모달에서 선택한 위치 사용 여부를 저장하고 대기 중인 흐름을 재개한다.
 function resolveMapConsent(allowed) {
   const checkbox = document.getElementById('map-location-consent');
   if (checkbox) checkbox.checked = allowed;
@@ -391,6 +415,7 @@ async function ensureLocationConsentResolved() {
   });
 }
 
+// 저장된 위치 동의 상태를 체크박스 UI와 동기화한다.
 function syncLocationConsentUI() {
   const checkbox = document.getElementById('map-location-consent');
   if (!checkbox) return;
@@ -407,6 +432,7 @@ function syncLocationConsentUI() {
   });
 }
 
+// 지도 패널 하단에 장소 검색 결과 목록을 그린다.
 function renderMapSearchResults(places = []) {
   const container = document.getElementById('map-search-results');
   if (!places.length) {
@@ -423,12 +449,14 @@ function renderMapSearchResults(places = []) {
   `).join('');
 }
 
+// 기존 장소 마커와 인포윈도우를 모두 정리한다.
 function clearPlaceMarkers() {
   kakaoPlaceMarkers.forEach(entry => entry.marker.setMap(null));
   kakaoPlaceMarkers = [];
   kakaoPlaceInfoWindow?.close();
 }
 
+// 인포윈도우가 잘리지 않도록 마커를 화면 하단 쪽으로 오게 이동한다.
 function moveMapForInfoWindow(position, callback) {
   if (!window.kakao?.maps || !kakaoMapInstance) {
     callback?.();
@@ -468,6 +496,7 @@ function moveMapForInfoWindow(position, callback) {
   kakaoMapInstance.panTo(nextCenter);
 }
 
+// 선택한 장소의 상세 정보를 인포윈도우로 연다.
 function openPlaceInfo(place, marker, options = {}) {
   if (!window.kakao?.maps || !kakaoMapInstance) return;
   if (!kakaoPlaceInfoWindow) {
@@ -487,6 +516,7 @@ function openPlaceInfo(place, marker, options = {}) {
     </div>
   `;
 
+  // 기존 창을 재사용하되 위치 보정 후 다시 열어 잘림을 줄인다.
   const showInfoWindow = () => {
     kakaoPlaceInfoWindow.close();
     kakaoPlaceInfoWindow.setContent(content);
@@ -504,6 +534,7 @@ function openPlaceInfo(place, marker, options = {}) {
   });
 }
 
+// 검색 목록에서 선택한 장소 마커에 포커싱한다.
 function focusPlaceMarker(index) {
   const entry = kakaoPlaceMarkers[index];
   if (!entry || !kakaoMapInstance) return;
@@ -511,11 +542,13 @@ function focusPlaceMarker(index) {
   openPlaceInfo(entry.place, entry.marker);
 }
 
+// 지도 메타 영역에 위치 출처나 검색 요약을 표시한다.
 function updateMapMeta(label = '', extra = '') {
   const parts = [label, extra].filter(Boolean);
   document.getElementById('current-location-meta').textContent = parts.join(' · ');
 }
 
+// 브라우저 geolocation API로 위치를 조회한다.
 function getBrowserGeolocationPosition() {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
@@ -551,6 +584,7 @@ function getBrowserGeolocationPosition() {
   });
 }
 
+// 현재 공인 IP를 기준으로 대략적인 위치를 조회한다.
 function getIpBasedPosition() {
   return fetch('https://ipapi.co/json/')
     .then(r => r.json())
@@ -567,10 +601,12 @@ function getIpBasedPosition() {
     });
 }
 
+// Electron 환경에서는 브라우저 위치보다 네이티브 위치를 우선 사용한다.
 function shouldPreferNativePosition() {
   return Boolean(window.api?.getNativePosition);
 }
 
+// 동의 상태와 실행 환경에 따라 가장 적절한 위치 소스를 선택한다.
 async function getBestAvailablePosition() {
   if (!hasLocationConsent()) {
     const ipPosition = await getIpBasedPosition();
@@ -605,6 +641,7 @@ async function getBestAvailablePosition() {
   }
 }
 
+// 카카오 지도 SDK 스크립트를 한 번만 로드한다.
 function loadKakaoMapSdk(appKey) {
   if (window.kakao?.maps) return Promise.resolve(window.kakao.maps);
   if (kakaoMapScriptPromise) return kakaoMapScriptPromise;
@@ -686,6 +723,7 @@ async function testCurrentLocationMap(options = {}) {
 
     kakaoMapInstance.relayout();
     kakaoMapInstance.setCenter(center);
+    // 사용자에게는 좌표 대신 어떤 기준으로 잡혔는지만 보여준다.
     const sourceLabel =
       position.source === 'ip'
         ? 'IP 기반 대략 위치'
@@ -725,6 +763,7 @@ async function testCurrentLocationMap(options = {}) {
   }
 }
 
+// 현재 지도 중심을 기준으로 장소 검색을 수행한다.
 async function searchPlacesOnMap(options = {}) {
   showMapPanel();
   const keywordInput = document.getElementById('map-search-keyword');
@@ -745,6 +784,7 @@ async function searchPlacesOnMap(options = {}) {
     const center = kakaoMapInstance.getCenter();
     setMapStatus(`"${keyword}" 검색 중입니다...`);
 
+    // 메인 프로세스에서 키워드/카테고리 검색을 자동 분기한다.
     const result = await window.api.searchPlaces({
       query: keyword,
       x: center.getLng(),
@@ -769,6 +809,7 @@ async function searchPlacesOnMap(options = {}) {
       return;
     }
 
+    // 검색된 모든 마커가 보이도록 bounds를 다시 계산한다.
     const bounds = new window.kakao.maps.LatLngBounds();
     result.places.forEach(place => {
       const position = new window.kakao.maps.LatLng(place.y, place.x);
@@ -807,6 +848,7 @@ const WHEEL_COLORS = [
 let wheelSpinning = false;
 let wheelAngle    = 0;
 
+// 현재 가중치 상태를 기반으로 룰렛 캔버스를 그린다.
 function drawWheel(angle) {
   const canvas = document.getElementById('wheelCanvas');
   if (!canvas) return;
@@ -856,6 +898,7 @@ function drawWheel(angle) {
   ctx.strokeStyle = '#2a2a30'; ctx.lineWidth = 2; ctx.stroke();
 }
 
+// 가중치에 비례한 당첨 메뉴를 계산하고 회전 애니메이션을 실행한다.
 function spinWheel() {
   const items = getActiveItems();
   if (!items.length) { showToast('선택 가능한 메뉴가 없어요.', true); return; }
@@ -941,6 +984,7 @@ let marbleAnimId    = null;
 let marbleExitOrder = [];
 let mbTrackW        = 360;
 
+// RGB 값을 증감해 구슬 음영 색을 만든다.
 function shadeColor(hex, pct) {
   const num = parseInt(hex.replace('#', ''), 16);
   const r = Math.min(255, Math.max(0, (num >> 16) + pct));
@@ -959,6 +1003,7 @@ function pointSegClosest(px, py, x1, y1, x2, y2) {
   return { dist: Math.hypot(px - cx, py - cy), cx, cy };
 }
 
+// 마블 코스의 핀 배치를 생성한다.
 function generatePegs(W) {
   marblePegs = [];
   const m  = MB_MARBLE_R * 3 + MB_PEG_R;
@@ -1010,6 +1055,7 @@ function generatePegs(W) {
 
 }
 
+// 마블 코스의 범퍼 배치를 생성한다.
 function generateBumpers(W) {
   marbleBumpers = [];
 
@@ -1030,6 +1076,7 @@ function generateBumpers(W) {
   );
 }
 
+// 현재 메뉴 목록을 바탕으로 마블 시뮬레이션 상태를 초기화한다.
 function initMarble() {
   marbleItems     = menus.filter(m => !m.excluded);
   marbleExitOrder = [];
@@ -1116,6 +1163,7 @@ function initMarble() {
   drawMinimap(minimap, wrap);
 }
 
+// 메인 마블 코스 캔버스를 그린다.
 function drawMarbleTrack(canvas) {
   const ctx = canvas.getContext('2d');
   const W   = canvas.width;
@@ -1151,7 +1199,7 @@ function drawMarbleTrack(canvas) {
   ctx.beginPath(); ctx.moveTo(1, 0); ctx.lineTo(1, H); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(W - 1, 0); ctx.lineTo(W - 1, H); ctx.stroke();
 
-  // FINISH ?쇱씤
+  // FINISH 라인
   const exitY = H - 60;
   ctx.strokeStyle = '#ff6b35';
   ctx.lineWidth   = 2;
@@ -1163,7 +1211,7 @@ function drawMarbleTrack(canvas) {
   ctx.textAlign  = 'center';
   ctx.fillText('FINISH', W / 2, exitY - 6);
 
-  // 踰뷀띁
+  // 범퍼
   ctx.lineCap = 'round';
   marbleBumpers.forEach(seg => {
     ctx.lineWidth   = 12;
@@ -1271,6 +1319,7 @@ function drawMarbleTrack(canvas) {
   });
 }
 
+// 전체 코스를 축소해 보여주는 미니맵을 그린다.
 function drawMinimap(minimap, wrap) {
   if (!minimap) return;
   const mCtx  = minimap.getContext('2d');
@@ -1308,7 +1357,7 @@ function drawMinimap(minimap, wrap) {
     mCtx.fill();
   });
 
-  // FINISH ?쇱씤
+  // FINISH 라인
   const exitMY = offY + (MB_TRACK_H - 60) * scaleY;
   mCtx.strokeStyle = 'rgba(255,107,53,0.5)';
   mCtx.lineWidth   = 1;
@@ -1335,6 +1384,7 @@ function drawMinimap(minimap, wrap) {
   }
 }
 
+// 구슬의 중력, 충돌, 이탈 판정을 한 프레임 진행한다.
 function physicsStep() {
   const W      = mbTrackW;
   const exitY  = MB_TRACK_H - 60;
@@ -1367,7 +1417,7 @@ function physicsStep() {
 
       // 충돌 해결: 벽 처리, 접촉 수집, 끼임 감지 순으로 적용
 
-      // 1. 醫뚯슦 踰?異⑸룎 (癒쇱? 泥섎━)
+      // 1. 좌우 벽 충돌을 먼저 처리한다.
       if (b.x - b.r < 1) {
         b.x = 1 + b.r;
         b.vx = Math.abs(b.vx) * MB_RESTITUTION;
@@ -1576,6 +1626,8 @@ function physicsStep() {
     });
   }
 }
+
+// 가장 아래까지 내려간 구슬을 기준으로 스크롤을 맞춘다.
 function autoScrollToLast() {
   const wrap = document.getElementById('marble-track-wrap');
   if (!wrap) return;
@@ -1585,6 +1637,7 @@ function autoScrollToLast() {
   wrap.scrollTop = Math.max(0, last.y - wrap.clientHeight * 0.45);
 }
 
+// 마블 시뮬레이션 애니메이션을 시작한다.
 function startMarble() {
   if (marbleFinished) { initMarble(); return; }
   if (marbleRunning) return;
@@ -1619,6 +1672,7 @@ function startMarble() {
   marbleAnimId = requestAnimationFrame(frame);
 }
 
+// 남은 구슬을 임의 순서로 종료 처리해 결과만 빠르게 확정한다.
 function skipMarble() {
   if (!marbleRunning) return;
   cancelAnimationFrame(marbleAnimId);

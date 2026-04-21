@@ -37,6 +37,7 @@ let serverUrl;
 
 const dbPath = path.join(app.getPath('userData'), 'lunch.db.json');
 
+// .env 파일의 값을 읽어 프로세스 환경 변수에 반영한다.
 function loadEnvFile() {
   const envPath = path.join(__dirname, '../../.env');
   if (!fs.existsSync(envPath)) return;
@@ -65,6 +66,7 @@ loadEnvFile();
 const kakaoRestApiKey = process.env.KAKAO_REST_API_KEY || '';
 const kakaoMapJsKey = process.env.KAKAO_MAP_JS_KEY || process.env.KAKAO_JAVASCRIPT_KEY || '';
 
+// 렌더러 정적 파일을 제공하는 로컬 서버를 시작한다.
 function startLocalServer() {
   return new Promise((resolve, reject) => {
     localServer = http.createServer((req, res) => {
@@ -89,13 +91,16 @@ function startLocalServer() {
   });
 }
 
+// 저장된 데이터로 메모리 DB를 복원하거나 초기 데이터를 생성한다.
 async function initDB() {
   const initSqlJs = require('sql.js');
   SQL = await initSqlJs({
+    // sql.js wasm 파일 경로를 패키지 구조에 맞춰 직접 지정한다.
     locateFile: file => path.join(__dirname, '../../node_modules/sql.js/dist/', file),
   });
 
   if (fs.existsSync(dbPath)) {
+    // 저장 파일이 있으면 메모리 DB를 만들고 JSON 데이터를 다시 주입한다.
     const saved = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
 
     db = new SQL.Database();
@@ -117,12 +122,14 @@ async function initDB() {
     });
     insertHistory.free();
   } else {
+    // 저장 파일이 없으면 빈 DB를 만들고 샘플 데이터를 채운다.
     db = new SQL.Database();
     createTables();
     insertSamples();
   }
 }
 
+// 메뉴와 히스토리 테이블을 생성한다.
 function createTables() {
   db.run(`
     CREATE TABLE IF NOT EXISTS menus (
@@ -142,6 +149,7 @@ function createTables() {
   `);
 }
 
+// 최초 실행 시 기본 메뉴 샘플을 추가한다.
 function insertSamples() {
   const samples = [
     ['김치찌개', '한식'],
@@ -164,12 +172,14 @@ function insertSamples() {
   stmt.free();
 }
 
+// 현재 DB 상태를 JSON 파일로 저장한다.
 function saveDB() {
   const menus = query('SELECT * FROM menus');
   const history = query('SELECT * FROM history');
   fs.writeFileSync(dbPath, JSON.stringify({ menus, history }), 'utf8');
 }
 
+// 조회 쿼리를 실행하고 결과 행을 반환한다.
 function query(sql, params = []) {
   const stmt = db.prepare(sql);
   stmt.bind(params);
@@ -179,11 +189,13 @@ function query(sql, params = []) {
   return rows;
 }
 
+// 변경 쿼리를 실행하고 저장 파일에 반영한다.
 function run(sql, params = []) {
   db.run(sql, params);
   saveDB();
 }
 
+// 카카오 장소 응답을 앱에서 쓰는 형태로 변환한다.
 function mapPlaces(documents = []) {
   return documents.map(place => ({
     id: place.id,
@@ -198,6 +210,7 @@ function mapPlaces(documents = []) {
   }));
 }
 
+// 장소 ID 기준으로 중복 결과를 제거한다.
 function dedupePlaces(places = []) {
   const seen = new Set();
   return places.filter(place => {
@@ -207,6 +220,7 @@ function dedupePlaces(places = []) {
   });
 }
 
+// 한글 검색어를 카카오 카테고리 코드로 변환한다.
 function resolveCategoryGroupCode(query) {
   const normalized = String(query || '').trim().toLowerCase().replace(/\s+/g, '');
   if (!normalized) return null;
@@ -220,6 +234,7 @@ function resolveCategoryGroupCode(query) {
   return null;
 }
 
+// 카카오 로컬 API를 공통 방식으로 호출한다.
 async function requestKakaoLocal(pathname, params) {
   const response = await fetch(`https://dapi.kakao.com/v2/local/${pathname}.json?${params.toString()}`, {
     headers: {
@@ -234,9 +249,11 @@ async function requestKakaoLocal(pathname, params) {
   return response.json();
 }
 
+// 카테고리 기반 장소 검색 결과를 여러 페이지에서 수집한다.
 async function searchKakaoByCategory({ categoryCode, x, y, radius, size }) {
   const pageSize = Math.min(Math.max(Number(size) || 15, 1), 15);
   const maxRadius = Math.min(Math.max(Number(radius) || 3000, 1), 20000);
+  // 기본 검색량을 늘리되 과한 요청은 피하기 위해 페이지 수를 제한한다.
   const maxPages = 3;
   const allPlaces = [];
   let page = 1;
@@ -262,6 +279,7 @@ async function searchKakaoByCategory({ categoryCode, x, y, radius, size }) {
   return dedupePlaces(allPlaces);
 }
 
+// 키워드 기반 장소 검색을 수행한다.
 async function searchKakaoByKeyword({ query, x, y, radius, size }) {
   const params = new URLSearchParams({
     query,
@@ -279,6 +297,7 @@ async function searchKakaoByKeyword({ query, x, y, radius, size }) {
   return mapPlaces(data.documents || []);
 }
 
+// Windows 위치 서비스를 이용해 현재 PC 위치를 조회한다.
 function getWindowsNativePosition() {
   return new Promise((resolve, reject) => {
     if (process.platform !== 'win32') {
@@ -290,6 +309,7 @@ function getWindowsNativePosition() {
       'Add-Type -AssemblyName System.Device',
       '$watcher = New-Object System.Device.Location.GeoCoordinateWatcher([System.Device.Location.GeoPositionAccuracy]::Default)',
       '$watcher.Start()',
+      // 위치 서비스가 바로 응답하지 않을 수 있어 짧게 여러 번 확인한다.
       'for ($i = 0; $i -lt 8; $i++) {',
       '  Start-Sleep -Milliseconds 500',
       '  if ($watcher.Position.Location.IsUnknown -eq $false) { break }',
@@ -343,6 +363,7 @@ function getWindowsNativePosition() {
   });
 }
 
+// 메인 브라우저 창을 생성하고 초기 화면을 연다.
 function createWindow() {
   mainWin = new BrowserWindow({
     width: 900,
@@ -350,6 +371,7 @@ function createWindow() {
     minWidth: 700,
     minHeight: 600,
     webPreferences: {
+      // 렌더러에는 preload로만 안전한 API를 노출한다.
       preload: path.join(__dirname, '../preload/preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
@@ -362,10 +384,12 @@ function createWindow() {
   if (!app.isPackaged) mainWin.webContents.openDevTools({ mode: 'right' });
 }
 
+// Electron 세션에 위치 권한 처리 핸들러를 등록한다.
 function setupPermissionHandlers() {
   const defaultSession = session.defaultSession;
   if (!defaultSession) return;
 
+  // 위치 권한만 허용하고 나머지는 기본적으로 허용하지 않는다.
   defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
     callback(permission === 'geolocation');
   });
@@ -375,6 +399,7 @@ function setupPermissionHandlers() {
   });
 }
 
+// 앱 준비가 끝나면 서버, DB, 메인 창을 순서대로 초기화한다.
 app.whenReady().then(async () => {
   setupPermissionHandlers();
   serverUrl = await startLocalServer();
@@ -382,20 +407,25 @@ app.whenReady().then(async () => {
   createWindow();
 });
 
+// 종료 직전에 로컬 서버를 정리한다.
 app.on('before-quit', () => {
   localServer?.close();
 });
 
+// macOS를 제외한 플랫폼에서는 창이 모두 닫히면 앱도 종료한다.
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
+// macOS에서 Dock 재실행 시 창이 없으면 새로 만든다.
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
 });
 
+// 메뉴 목록을 카테고리/이름 순으로 반환한다.
 ipcMain.handle('get-menus', () => query('SELECT * FROM menus ORDER BY category, name'));
 
+// 새 메뉴를 추가한다.
 ipcMain.handle('add-menu', (_, { name, category }) => {
   try {
     run('INSERT INTO menus (name, category) VALUES (?,?)', [name.trim(), category || '기타']);
@@ -405,6 +435,7 @@ ipcMain.handle('add-menu', (_, { name, category }) => {
   }
 });
 
+// 기존 메뉴 이름과 카테고리를 수정한다.
 ipcMain.handle('update-menu', (_, { id, name, category }) => {
   try {
     run('UPDATE menus SET name=?, category=? WHERE id=?', [name.trim(), category, id]);
@@ -414,16 +445,19 @@ ipcMain.handle('update-menu', (_, { id, name, category }) => {
   }
 });
 
+// 메뉴를 삭제한다.
 ipcMain.handle('delete-menu', (_, id) => {
   run('DELETE FROM menus WHERE id=?', [id]);
   return { success: true };
 });
 
+// 메뉴 제외 상태를 토글한다.
 ipcMain.handle('toggle-exclude', (_, id) => {
   run('UPDATE menus SET excluded = CASE WHEN excluded=0 THEN 1 ELSE 0 END WHERE id=?', [id]);
   return { success: true };
 });
 
+// 제외되지 않은 메뉴 중 하나를 랜덤으로 뽑고 히스토리에 기록한다.
 ipcMain.handle('pick-random', () => {
   const available = query('SELECT * FROM menus WHERE excluded=0');
   if (!available.length) return { success: false, error: '선택 가능한 메뉴가 없습니다.' };
@@ -433,31 +467,38 @@ ipcMain.handle('pick-random', () => {
   return { success: true, menu: picked };
 });
 
+// 최근 히스토리 목록을 반환한다.
 ipcMain.handle('get-history', () => query('SELECT * FROM history ORDER BY picked_at DESC LIMIT 30'));
 
+// 히스토리를 모두 비운다.
 ipcMain.handle('clear-history', () => {
   run('DELETE FROM history');
   return { success: true };
 });
 
+// 즐겨찾기 상태를 토글한다.
 ipcMain.handle('toggle-favorite', (_, id) => {
   run('UPDATE menus SET favorite = CASE WHEN favorite=0 THEN 1 ELSE 0 END WHERE id=?', [id]);
   return { success: true };
 });
 
+// 렌더러에서 확정된 선택 결과를 히스토리에 기록한다.
 ipcMain.handle('record-pick', (_, menuName) => {
   run('INSERT INTO history (menu_name, picked_at) VALUES (?, datetime(\'now\',\'localtime\'))', [menuName]);
   return { success: true };
 });
 
+// 카카오 지도 SDK 초기화에 필요한 설정값을 전달한다.
 ipcMain.handle('get-kakao-map-config', () => ({
   jsKey: kakaoMapJsKey,
 }));
 
+// 렌더러에서 요청한 현재 PC 위치를 Windows 위치 서비스로 조회한다.
 ipcMain.handle('get-native-position', async () => {
   return getWindowsNativePosition();
 });
 
+// 한글 카테고리 또는 키워드로 카카오 장소 검색을 수행한다.
 ipcMain.handle('search-kakao-places', async (_, { query, x, y, radius = 2000, size = 5 } = {}) => {
   if (!kakaoRestApiKey) {
     return { success: false, error: 'KAKAO_REST_API_KEY가 설정되지 않았습니다.' };
@@ -486,19 +527,23 @@ ipcMain.handle('search-kakao-places', async (_, { query, x, y, radius = 2000, si
   }
 });
 
+// 앱 종료를 요청한다.
 ipcMain.handle('close-app', () => {
   app.quit();
 });
 
+// 메인 창을 최소화한다.
 ipcMain.on('minimize-app', () => {
   mainWin?.minimize();
 });
 
+// 메인 창 최대화 상태를 토글한다.
 ipcMain.on('maximize-app', () => {
   if (!mainWin) return;
   mainWin.isMaximized() ? mainWin.unmaximize() : mainWin.maximize();
 });
 
+// 현재 탭에 맞춰 창 최소 크기와 높이를 조정한다.
 ipcMain.on('resize-for-tab', (_, tab) => {
   if (!mainWin || mainWin.isMaximized()) return;
 
