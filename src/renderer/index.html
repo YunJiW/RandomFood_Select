@@ -90,7 +90,10 @@
           <canvas id="wheelCanvas" width="280" height="280"></canvas>
           <div class="wheel-pointer">▼</div>
         </div>
-        <button id="wheel-btn" onclick="spinWheel()">돌리기!</button>
+        <div class="wheel-controls">
+          <button id="wheel-btn" onclick="spinWheel()">돌리기!</button>
+          <button id="wheel-skip-btn" class="wheel-secondary-btn" onclick="skipWheel()" disabled>바로 결과보기</button>
+        </div>
         <div id="wheel-result" class="wheel-result-box"></div>
       </div>
       <div id="wheel-right">

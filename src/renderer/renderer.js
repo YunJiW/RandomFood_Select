@@ -57,7 +57,8 @@ function triggerActiveTabAction() {
     return;
   }
   if (activeTab === 'wheel') {
-    spinWheel();
+    if (wheelSpinning) skipWheel();
+    else spinWheel();
     return;
   }
   if (activeTab === 'marble') {
@@ -944,6 +945,8 @@ const WHEEL_COLORS = [
 
 let wheelSpinning = false;
 let wheelAngle    = 0;
+let wheelAnimId   = null;
+let wheelPendingResult = null;
 
 // 현재 가중치 상태를 기반으로 룰렛 캔버스를 그린다.
 function drawWheel(angle) {
@@ -995,6 +998,26 @@ function drawWheel(angle) {
   ctx.strokeStyle = '#2a2a30'; ctx.lineWidth = 2; ctx.stroke();
 }
 
+function finalizeWheelResult() {
+  if (!wheelPendingResult) return;
+
+  const { finalAngle, pickedName } = wheelPendingResult;
+  const btn = document.getElementById('wheel-btn');
+  const skipBtn = document.getElementById('wheel-skip-btn');
+  const resultBox = document.getElementById('wheel-result');
+
+  wheelAngle = finalAngle;
+  drawWheel(wheelAngle);
+  wheelSpinning = false;
+  wheelAnimId = null;
+  wheelPendingResult = null;
+
+  if (btn) btn.disabled = false;
+  if (skipBtn) skipBtn.disabled = true;
+  if (resultBox) resultBox.textContent = `당첨 ${pickedName}!`;
+  window.api.recordPick(pickedName).then(() => loadHistory());
+}
+
 // 가중치에 비례한 당첨 메뉴를 계산하고 회전 애니메이션을 실행한다.
 function spinWheel() {
   const items = getActiveItems();
@@ -1003,8 +1026,11 @@ function spinWheel() {
   wheelSpinning = true;
 
   const btn = document.getElementById('wheel-btn');
+  const skipBtn = document.getElementById('wheel-skip-btn');
   const resultBox = document.getElementById('wheel-result');
-  btn.disabled = true; resultBox.textContent = '';
+  btn.disabled = true;
+  if (skipBtn) skipBtn.disabled = false;
+  resultBox.textContent = '';
 
   // 가중치 기반 랜덤 선택
   const total = totalWeight(items);
@@ -1028,6 +1054,10 @@ function spinWheel() {
 
   const duration   = 4800;
   const startTime  = performance.now();
+  wheelPendingResult = {
+    finalAngle,
+    pickedName: items[targetIdx].name,
+  };
 
   function easeOut(t) { return 1 - Math.pow(1 - t, 3.5); }
 
@@ -1036,16 +1066,18 @@ function spinWheel() {
     wheelAngle = startAngle + (finalAngle - startAngle) * easeOut(t);
     drawWheel(wheelAngle);
     if (t < 1) {
-      requestAnimationFrame(animate);
+      wheelAnimId = requestAnimationFrame(animate);
     } else {
-      wheelAngle = finalAngle;
-      wheelSpinning = false;
-      btn.disabled = false;
-      resultBox.textContent = `당첨 ${items[targetIdx].name}!`;
-      window.api.recordPick(items[targetIdx].name).then(() => loadHistory());
+      finalizeWheelResult();
     }
   }
-  requestAnimationFrame(animate);
+  wheelAnimId = requestAnimationFrame(animate);
+}
+
+function skipWheel() {
+  if (!wheelSpinning || !wheelPendingResult) return;
+  cancelAnimationFrame(wheelAnimId);
+  finalizeWheelResult();
 }
 
 // 마블 룰렛 (Dynamic Plinko, 5구역)
