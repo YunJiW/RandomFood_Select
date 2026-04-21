@@ -42,6 +42,37 @@ document.getElementById('new-name').addEventListener('keydown', e => { if (e.key
 document.getElementById('wheel-new-name').addEventListener('keydown', e => { if (e.key === 'Enter') addMenuFromWheel(); });
 document.getElementById('map-search-keyword').addEventListener('keydown', e => { if (e.key === 'Enter') searchPlacesOnMap(); });
 
+function isTypingTarget(target) {
+  if (!target) return false;
+  if (target.isContentEditable) return true;
+  const tagName = target.tagName?.toUpperCase();
+  return tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT' || tagName === 'BUTTON';
+}
+
+function triggerActiveTabAction() {
+  const activeTab = document.querySelector('.tab.active')?.dataset.tab;
+  if (activeTab === 'pick') {
+    pickRandom();
+    return;
+  }
+  if (activeTab === 'wheel') {
+    spinWheel();
+    return;
+  }
+  if (activeTab === 'marble') {
+    startMarble();
+  }
+}
+
+document.addEventListener('keydown', e => {
+  if (e.repeat) return;
+  if (e.key !== 'Enter' && e.code !== 'Space') return;
+  if (isTypingTarget(e.target)) return;
+
+  e.preventDefault();
+  triggerActiveTabAction();
+});
+
 // 카테고리 필터
 document.querySelectorAll('.cat-btn').forEach(btn => {
   if (btn.dataset.cat === '전체') return;
@@ -970,13 +1001,16 @@ function spinWheel() {
   const sliceAngle = (items[targetIdx].weight / total) * Math.PI * 2;
   const sliceMid   = sliceStart + sliceAngle / 2;
 
-  // 포인터(-PI/2)가 sliceMid를 가리키도록 계산
-  const targetAngle = -Math.PI / 2 - sliceMid;
-  const extraSpins  = Math.PI * 2 * (6 + Math.floor(Math.random() * 4));
-  const finalAngle  = targetAngle - extraSpins;
-
-  const duration   = 4200 + Math.random() * 1200;
   const startAngle = wheelAngle;
+  const fullTurn   = Math.PI * 2;
+  const targetAngle = -Math.PI / 2 - sliceMid;
+  const normalizedStart = ((startAngle % fullTurn) + fullTurn) % fullTurn;
+  const normalizedTarget = ((targetAngle % fullTurn) + fullTurn) % fullTurn;
+  const alignDelta = -((normalizedStart - normalizedTarget + fullTurn) % fullTurn);
+  const extraSpins = fullTurn * 7;
+  const finalAngle = startAngle + alignDelta - extraSpins;
+
+  const duration   = 4800;
   const startTime  = performance.now();
 
   function easeOut(t) { return 1 - Math.pow(1 - t, 3.5); }
