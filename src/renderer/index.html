@@ -149,6 +149,10 @@
     <div class="map-key-note">지도 SDK 키는 앱 설정에서 자동으로 불러옵니다.</div>
     <button class="btn-add" onclick="testCurrentLocationMap()">지도 불러오기</button>
   </div>
+  <label class="map-permission-toggle">
+    <input type="checkbox" id="map-location-consent" />
+    <span>현재 위치 사용 허용</span>
+  </label>
   <div class="map-search-row">
     <input type="text" id="map-search-keyword" placeholder="예: 초밥, 카페, 햄버거" />
     <button class="btn-add" onclick="searchPlacesOnMap()">검색</button>
@@ -156,6 +160,18 @@
   <div id="current-location-meta" class="current-location-meta"></div>
   <div id="kakao-map"></div>
   <div id="map-search-results" class="map-search-results"></div>
+</div>
+
+<div id="map-consent-modal" class="map-consent-modal">
+  <div class="map-consent-dialog">
+    <div class="map-consent-title">현재 위치 사용</div>
+    <div class="map-consent-text">가까운 가게를 더 정확하게 찾기 위해 현재 위치를 사용할까요?</div>
+    <div class="map-consent-subtext">거부하면 IP 기반 대략 위치로 지도를 불러옵니다.</div>
+    <div class="map-consent-actions">
+      <button class="btn-cancel" onclick="resolveMapConsent(false)">거부</button>
+      <button class="btn-save" onclick="resolveMapConsent(true)">허용</button>
+    </div>
+  </div>
 </div>
 
 <div id="toast"></div>

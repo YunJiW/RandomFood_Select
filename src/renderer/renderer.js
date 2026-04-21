@@ -10,6 +10,8 @@ let kakaoMapInstance = null;
 let kakaoMapMarker = null;
 let kakaoPlaceMarkers = [];
 let kakaoPlaceInfoWindow = null;
+const MAP_LOCATION_CONSENT_KEY = 'map-location-consent';
+let mapConsentResolver = null;
 
 // 탭 전환
 document.querySelectorAll('.tab').forEach(tab => {
@@ -348,6 +350,63 @@ function hideMapPanel() {
   document.getElementById('map-test-panel').classList.remove('show');
 }
 
+function hasLocationConsent() {
+  return document.getElementById('map-location-consent')?.checked === true;
+}
+
+function hasStoredLocationConsentDecision() {
+  return window.localStorage.getItem(MAP_LOCATION_CONSENT_KEY) !== null;
+}
+
+function showMapConsentModal() {
+  document.getElementById('map-consent-modal')?.classList.add('show');
+}
+
+function hideMapConsentModal() {
+  document.getElementById('map-consent-modal')?.classList.remove('show');
+}
+
+function resolveMapConsent(allowed) {
+  const checkbox = document.getElementById('map-location-consent');
+  if (checkbox) checkbox.checked = allowed;
+  window.localStorage.setItem(MAP_LOCATION_CONSENT_KEY, String(allowed));
+  hideMapConsentModal();
+  mapConsentResolver?.(allowed);
+  mapConsentResolver = null;
+  setMapStatus(
+    allowed
+      ? '현재 위치 사용이 허용되었습니다. 지도 불러오기를 누르면 실제 위치를 우선 시도합니다.'
+      : '현재 위치 사용이 거부되었습니다. 지도는 IP 기반 대략 위치로 불러옵니다.'
+  );
+}
+
+window.resolveMapConsent = resolveMapConsent;
+
+async function ensureLocationConsentResolved() {
+  if (hasStoredLocationConsentDecision()) return hasLocationConsent();
+
+  return new Promise(resolve => {
+    mapConsentResolver = resolve;
+    showMapConsentModal();
+  });
+}
+
+function syncLocationConsentUI() {
+  const checkbox = document.getElementById('map-location-consent');
+  if (!checkbox) return;
+
+  const savedValue = window.localStorage.getItem(MAP_LOCATION_CONSENT_KEY);
+  checkbox.checked = savedValue === 'true';
+  checkbox.addEventListener('change', () => {
+    window.localStorage.setItem(MAP_LOCATION_CONSENT_KEY, String(checkbox.checked));
+    setMapStatus(
+      checkbox.checked
+        ? '현재 위치 사용이 허용되었습니다. 지도 불러오기를 누르면 실제 위치를 우선 시도합니다.'
+        : '현재 위치 사용이 꺼져 있습니다. 지도는 IP 기반 대략 위치로 불러옵니다.'
+    );
+  });
+}
+
 function renderMapSearchResults(places = []) {
   const container = document.getElementById('map-search-results');
   if (!places.length) {
@@ -370,35 +429,91 @@ function clearPlaceMarkers() {
   kakaoPlaceInfoWindow?.close();
 }
 
-function openPlaceInfo(place, marker) {
+function moveMapForInfoWindow(position, callback) {
+  if (!window.kakao?.maps || !kakaoMapInstance) {
+    callback?.();
+    return;
+  }
+
+  const mapContainer = document.getElementById('kakao-map');
+  const projection = kakaoMapInstance.getProjection();
+  if (!mapContainer || !projection) {
+    kakaoMapInstance.panTo(position);
+    callback?.();
+    return;
+  }
+
+  const markerPoint = projection.containerPointFromCoords(position);
+  const centerPoint = projection.containerPointFromCoords(kakaoMapInstance.getCenter());
+  const desiredPoint = new window.kakao.maps.Point(
+    mapContainer.clientWidth / 2,
+    Math.min(mapContainer.clientHeight * 0.76, mapContainer.clientHeight - 70)
+  );
+
+  const dx = markerPoint.x - desiredPoint.x;
+  const dy = markerPoint.y - desiredPoint.y;
+  if (Math.abs(dx) < 4 && Math.abs(dy) < 4) {
+    callback?.();
+    return;
+  }
+
+  const nextCenterPoint = new window.kakao.maps.Point(centerPoint.x + dx, centerPoint.y + dy);
+  const nextCenter = projection.coordsFromContainerPoint(nextCenterPoint);
+  const idleHandler = () => {
+    window.kakao.maps.event.removeListener(kakaoMapInstance, 'idle', idleHandler);
+    callback?.();
+  };
+
+  window.kakao.maps.event.addListener(kakaoMapInstance, 'idle', idleHandler);
+  kakaoMapInstance.panTo(nextCenter);
+}
+
+function openPlaceInfo(place, marker, options = {}) {
   if (!window.kakao?.maps || !kakaoMapInstance) return;
-  if (!kakaoPlaceInfoWindow) kakaoPlaceInfoWindow = new window.kakao.maps.InfoWindow({ removable: true });
+  if (!kakaoPlaceInfoWindow) {
+    kakaoPlaceInfoWindow = new window.kakao.maps.InfoWindow({
+      removable: true,
+      disableAutoPan: false,
+    });
+  }
 
   const content = `
-    <div style="padding:10px 12px; min-width:220px; color:#111; line-height:1.5;">
-      <div style="font-weight:700; margin-bottom:4px;">${place.name}</div>
+    <div style="padding:10px 12px; min-width:240px; max-width:300px; color:#111; line-height:1.5; white-space:normal;">
+      <div style="font-weight:700; margin-bottom:4px; padding-right:18px; line-height:1.45; word-break:break-word; overflow-wrap:anywhere;">${place.name}</div>
       <div style="font-size:12px; color:#555;">${place.category || ''}</div>
-      <div style="font-size:12px; color:#333; margin-top:6px;">${place.address || ''}</div>
+      <div style="font-size:12px; color:#333; margin-top:6px; word-break:keep-all; overflow-wrap:anywhere;">${place.address || ''}</div>
       ${place.distance ? `<div style="font-size:12px; color:#ff6b35; margin-top:6px;">현재 중심에서 ${place.distance}m</div>` : ''}
-      ${place.url ? `<div style="margin-top:8px;"><a href="${place.url}" target="_blank" style="font-size:12px; color:#0068c3; text-decoration:none;">카카오맵에서 보기</a></div>` : ''}
+      ${place.url ? `<div style="margin-top:8px;"><a href="${place.url}" target="_blank" rel="noreferrer" style="font-size:12px; color:#0068c3; text-decoration:none;">카카오맵에서 보기</a></div>` : ''}
     </div>
   `;
 
-  kakaoPlaceInfoWindow.setContent(content);
-  kakaoPlaceInfoWindow.open(kakaoMapInstance, marker);
+  const showInfoWindow = () => {
+    kakaoPlaceInfoWindow.close();
+    kakaoPlaceInfoWindow.setContent(content);
+    kakaoPlaceInfoWindow.open(kakaoMapInstance, marker);
+  };
+
+  if (options.skipReposition) {
+    showInfoWindow();
+    return;
+  }
+
+  kakaoPlaceInfoWindow.close();
+  moveMapForInfoWindow(marker.getPosition(), () => {
+    window.setTimeout(showInfoWindow, 80);
+  });
 }
 
 function focusPlaceMarker(index) {
   const entry = kakaoPlaceMarkers[index];
   if (!entry || !kakaoMapInstance) return;
 
-  kakaoMapInstance.panTo(entry.position);
   openPlaceInfo(entry.place, entry.marker);
 }
 
-function updateMapStatusWithCenter(lat, lng, extra = '') {
-  const prefix = `위도 ${lat.toFixed(6)} / 경도 ${lng.toFixed(6)}`;
-  document.getElementById('current-location-meta').textContent = extra ? `${prefix} · ${extra}` : prefix;
+function updateMapMeta(label = '', extra = '') {
+  const parts = [label, extra].filter(Boolean);
+  document.getElementById('current-location-meta').textContent = parts.join(' · ');
 }
 
 function getBrowserGeolocationPosition() {
@@ -457,6 +572,14 @@ function shouldPreferNativePosition() {
 }
 
 async function getBestAvailablePosition() {
+  if (!hasLocationConsent()) {
+    const ipPosition = await getIpBasedPosition();
+    return {
+      ...ipPosition,
+      fallbackReason: '현재 위치 사용이 허용되지 않았습니다.',
+    };
+  }
+
   if (shouldPreferNativePosition()) {
     try {
       return await window.api.getNativePosition();
@@ -523,8 +646,14 @@ async function testCurrentLocationMap(options = {}) {
     return;
   }
 
+  await ensureLocationConsentResolved();
+
   try {
-    setMapStatus('현재 위치와 Kakao 지도를 불러오는 중입니다...');
+    setMapStatus(
+      hasLocationConsent()
+        ? '현재 위치 기반으로 Kakao 지도를 불러오는 중입니다...'
+        : '현재 위치 사용이 꺼져 있어 IP 기반 대략 위치로 Kakao 지도를 불러오는 중입니다...'
+    );
     const [maps, position] = await Promise.all([
       loadKakaoMapSdk(appKey),
       getBestAvailablePosition(),
@@ -563,7 +692,7 @@ async function testCurrentLocationMap(options = {}) {
         : position.source === 'native'
           ? 'Windows 위치 서비스'
           : '실제 기기 위치';
-    locationMeta.textContent = `위도 ${lat.toFixed(6)} / 경도 ${lng.toFixed(6)} · ${sourceLabel}`;
+    locationMeta.textContent = sourceLabel;
     clearPlaceMarkers();
     renderMapSearchResults([]);
     const loadedMessage = position.source === 'ip'
@@ -632,7 +761,10 @@ async function searchPlacesOnMap(options = {}) {
     renderMapSearchResults(result.places || []);
 
     if (!result.places?.length) {
-      updateMapStatusWithCenter(center.getLat(), center.getLng(), `"${keyword}" 결과 없음`);
+      updateMapMeta(
+        document.getElementById('current-location-meta')?.textContent || '',
+        `"${keyword}" 결과 없음`
+      );
       setMapStatus(`"${keyword}" 검색 결과가 없습니다.`, true);
       return;
     }
@@ -648,7 +780,10 @@ async function searchPlacesOnMap(options = {}) {
     });
 
     kakaoMapInstance.setBounds(bounds);
-    updateMapStatusWithCenter(center.getLat(), center.getLng(), `"${keyword}" ${result.places.length}건`);
+    updateMapMeta(
+      document.getElementById('current-location-meta')?.textContent || '',
+      `"${keyword}" ${result.places.length}건`
+    );
     const searchModeLabel = result.searchMode === 'category' ? '카테고리 검색' : '키워드 검색';
     const resultMessage = `"${keyword}" ${searchModeLabel} 결과 ${result.places.length}건을 표시했습니다.`;
     setMapStatus(options.silentOnMapInit && options.baseStatusMessage
@@ -1510,6 +1645,7 @@ function skipMarble() {
 }
 
 // 초기화
+syncLocationConsentUI();
 loadKakaoMapConfig();
 loadAll();
 

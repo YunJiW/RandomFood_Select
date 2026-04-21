@@ -247,6 +247,26 @@ body {
   font-size: 11px;
   font-family: var(--font);
 }
+.map-permission-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 11px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.03);
+  color: var(--text);
+  font-size: 11px;
+  font-family: var(--font);
+  cursor: pointer;
+  align-self: flex-start;
+}
+.map-permission-toggle input {
+  accent-color: var(--accent);
+}
+.map-permission-toggle span {
+  color: var(--muted);
+}
 .map-search-row input {
   flex: 1;
   min-width: 220px;
@@ -316,6 +336,50 @@ body {
   font-size: 11px;
   color: var(--muted);
   line-height: 1.4;
+}
+.map-consent-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 230;
+  background: rgba(0,0,0,0.58);
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.map-consent-modal.show {
+  display: flex;
+}
+.map-consent-dialog {
+  width: min(100%, 360px);
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(32,32,37,0.98), rgba(23,23,26,0.99));
+  box-shadow: 0 18px 50px rgba(0,0,0,0.42);
+}
+.map-consent-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  color: var(--text);
+}
+.map-consent-text {
+  margin-top: 10px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text);
+}
+.map-consent-subtext {
+  margin-top: 8px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.map-consent-actions {
+  margin-top: 18px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 /* ── Wheel Tab ── */
