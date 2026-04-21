@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('api', {
   recordPick:    (menuName)   => ipcRenderer.invoke('record-pick', menuName),
   getKakaoMapConfig: ()       => ipcRenderer.invoke('get-kakao-map-config'),
   getNativePosition: ()       => ipcRenderer.invoke('get-native-position'),
+  setLocationConsent: (allowed) => ipcRenderer.invoke('set-location-consent', allowed),
   searchPlaces:  (payload)    => ipcRenderer.invoke('search-kakao-places', payload),
   closeApp:      ()           => ipcRenderer.invoke('close-app'),
   minimizeApp:   ()           => ipcRenderer.send('minimize-app'),

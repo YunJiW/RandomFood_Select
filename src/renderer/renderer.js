@@ -1,3 +1,12 @@
+function escapeHtml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // 렌더러 전역 상태
 let menus     = [];
 let history   = [];
@@ -119,8 +128,8 @@ function renderMenus() {
   if (!menus.length) { list.innerHTML = '<div class="empty-state">등록된 메뉴가 없습니다.<br>아래에서 메뉴를 추가해 주세요.</div>'; return; }
   list.innerHTML = menus.map(m => `
     <div class="menu-item ${m.excluded ? 'excluded' : ''}">
-      <span class="cat-badge">${m.category}</span>
-      <span class="menu-name">${m.name}</span>
+      <span class="cat-badge">${escapeHtml(m.category)}</span>
+      <span class="menu-name">${escapeHtml(m.name)}</span>
       ${m.excluded ? '<span class="excluded-tag">제외됨</span>' : ''}
       <button class="icon-btn fav-btn ${m.favorite ? 'active' : ''}" onclick="toggleFavorite(${m.id})" title="즐겨찾기">${m.favorite ? '★' : '☆'}</button>
       <button class="icon-btn exclude-btn" onclick="toggleExclude(${m.id})" title="${m.excluded ? '포함' : '제외'}">${m.excluded ? '↺' : '⊘'}</button>
@@ -166,7 +175,7 @@ function renderWeightList() {
     return `
       <div class="weight-item ${exc ? 'excluded' : ''}">
         <span class="weight-pct">${pct}%</span>
-        <span class="weight-name" title="${m.name}">${m.name}</span>
+        <span class="weight-name" title="${escapeHtml(m.name)}">${escapeHtml(m.name)}</span>
         <div class="weight-controls">
           <button class="wc-btn" onclick="adjustWeight(${m.id},-1)" ${exc || w <= 1 ? 'disabled' : ''}>−</button>
           <input class="wc-input" type="number" min="1" max="99" value="${w}"
@@ -292,7 +301,7 @@ async function loadHistory() {
     list.innerHTML = history.map(h => {
       const d = new Date(h.picked_at);
       const t = `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
-      return `<div class="history-item"><span class="history-name">${h.menu_name}</span><span class="history-time">${t}</span></div>`;
+      return `<div class="history-item"><span class="history-name">${escapeHtml(h.menu_name)}</span><span class="history-time">${t}</span></div>`;
     }).join('');
   }
   renderStats();
@@ -326,14 +335,14 @@ function renderStats() {
     ${top5.map(([name, cnt], i) => `
       <div class="stat-item">
         <span class="stat-rank">${i + 1}</span>
-        <span class="stat-name">${name}</span>
+        <span class="stat-name">${escapeHtml(name)}</span>
         <div class="stat-bar-wrap"><div class="stat-bar" style="width:${Math.round(cnt/maxCnt*100)}%"></div></div>
         <span class="stat-count">${cnt}회</span>
       </div>`).join('')}
     <div class="stats-section-title" style="margin-top:6px">선호 카테고리</div>
     <div class="stat-item">
       <span class="stat-rank">1</span>
-      <span class="stat-name">${topCat[0]}</span>
+      <span class="stat-name">${escapeHtml(topCat[0])}</span>
       <div class="stat-bar-wrap"><div class="stat-bar" style="width:100%"></div></div>
       <span class="stat-count">${topCat[1]}회</span>
     </div>
@@ -394,6 +403,7 @@ function resolveMapConsent(allowed) {
   const checkbox = document.getElementById('map-location-consent');
   if (checkbox) checkbox.checked = allowed;
   window.localStorage.setItem(MAP_LOCATION_CONSENT_KEY, String(allowed));
+  window.api.setLocationConsent?.(allowed);
   hideMapConsentModal();
   mapConsentResolver?.(allowed);
   mapConsentResolver = null;
@@ -422,8 +432,10 @@ function syncLocationConsentUI() {
 
   const savedValue = window.localStorage.getItem(MAP_LOCATION_CONSENT_KEY);
   checkbox.checked = savedValue === 'true';
+  window.api.setLocationConsent?.(checkbox.checked);
   checkbox.addEventListener('change', () => {
     window.localStorage.setItem(MAP_LOCATION_CONSENT_KEY, String(checkbox.checked));
+    window.api.setLocationConsent?.(checkbox.checked);
     setMapStatus(
       checkbox.checked
         ? '현재 위치 사용이 허용되었습니다. 지도 불러오기를 누르면 실제 위치를 우선 시도합니다.'
@@ -442,9 +454,9 @@ function renderMapSearchResults(places = []) {
 
   container.innerHTML = places.map((place, index) => `
     <div class="map-place-item" onclick="focusPlaceMarker(${index})">
-      <div class="map-place-title">${place.name}</div>
-      <div class="map-place-meta">${place.category || '카테고리 없음'}${place.distance ? ` · ${place.distance}m` : ''}</div>
-      <div class="map-place-address">${place.address || '주소 정보 없음'}</div>
+      <div class="map-place-title">${escapeHtml(place.name)}</div>
+      <div class="map-place-meta">${escapeHtml(place.category || '카테고리 없음')}${place.distance ? ` · ${place.distance}m` : ''}</div>
+      <div class="map-place-address">${escapeHtml(place.address || '주소 정보 없음')}</div>
     </div>
   `).join('');
 }
@@ -506,13 +518,14 @@ function openPlaceInfo(place, marker, options = {}) {
     });
   }
 
+  const safeUrl = (place.url && /^https:\/\//.test(place.url)) ? place.url : null;
   const content = `
     <div style="padding:10px 12px; min-width:240px; max-width:300px; color:#111; line-height:1.5; white-space:normal;">
-      <div style="font-weight:700; margin-bottom:4px; padding-right:18px; line-height:1.45; word-break:break-word; overflow-wrap:anywhere;">${place.name}</div>
-      <div style="font-size:12px; color:#555;">${place.category || ''}</div>
-      <div style="font-size:12px; color:#333; margin-top:6px; word-break:keep-all; overflow-wrap:anywhere;">${place.address || ''}</div>
+      <div style="font-weight:700; margin-bottom:4px; padding-right:18px; line-height:1.45; word-break:break-word; overflow-wrap:anywhere;">${escapeHtml(place.name)}</div>
+      <div style="font-size:12px; color:#555;">${escapeHtml(place.category || '')}</div>
+      <div style="font-size:12px; color:#333; margin-top:6px; word-break:keep-all; overflow-wrap:anywhere;">${escapeHtml(place.address || '')}</div>
       ${place.distance ? `<div style="font-size:12px; color:#ff6b35; margin-top:6px;">현재 중심에서 ${place.distance}m</div>` : ''}
-      ${place.url ? `<div style="margin-top:8px;"><a href="${place.url}" target="_blank" rel="noreferrer" style="font-size:12px; color:#0068c3; text-decoration:none;">카카오맵에서 보기</a></div>` : ''}
+      ${safeUrl ? `<div style="margin-top:8px;"><a href="${escapeHtml(safeUrl)}" target="_blank" rel="noreferrer" style="font-size:12px; color:#0068c3; text-decoration:none;">카카오맵에서 보기</a></div>` : ''}
     </div>
   `;
 
@@ -607,7 +620,7 @@ function shouldPreferNativePosition() {
 }
 
 // 동의 상태와 실행 환경에 따라 가장 적절한 위치 소스를 선택한다.
-async function getBestAvailablePosition() {
+async function legacyGetBestAvailablePosition() {
   if (!hasLocationConsent()) {
     const ipPosition = await getIpBasedPosition();
     return {
@@ -642,6 +655,43 @@ async function getBestAvailablePosition() {
 }
 
 // 카카오 지도 SDK 스크립트를 한 번만 로드한다.
+async function getBestAvailablePosition() {
+  if (!hasLocationConsent()) {
+    const ipPosition = await getIpBasedPosition();
+    return {
+      ...ipPosition,
+      fallbackReason: '현재 위치 사용이 허용되지 않았습니다.',
+    };
+  }
+
+  let nativeError = null;
+  if (shouldPreferNativePosition()) {
+    try {
+      return await window.api.getNativePosition();
+    } catch (error) {
+      nativeError = error;
+      console.warn('[Map] 네이티브 위치 정보를 가져오지 못해 브라우저 위치를 다시 시도합니다:', error);
+    }
+  }
+
+  try {
+    const browserPosition = await getBrowserGeolocationPosition();
+    return nativeError
+      ? { ...browserPosition, fallbackReason: nativeError.message }
+      : browserPosition;
+  } catch (geoError) {
+    console.warn('[Map] 브라우저 위치 정보를 가져오지 못해 IP 위치로 대체합니다:', geoError);
+    const ipPosition = await getIpBasedPosition();
+    const fallbackReason = [nativeError?.message, geoError?.message]
+      .filter(Boolean)
+      .join(' / ');
+    return {
+      ...ipPosition,
+      fallbackReason,
+    };
+  }
+}
+
 function loadKakaoMapSdk(appKey) {
   if (window.kakao?.maps) return Promise.resolve(window.kakao.maps);
   if (kakaoMapScriptPromise) return kakaoMapScriptPromise;
@@ -655,7 +705,7 @@ function loadKakaoMapSdk(appKey) {
     };
 
     const timer = setTimeout(() => {
-      cleanup(new Error('Kakao 지도 SDK 로드 시간이 초과되었습니다. 카카오 콘솔에 http://localhost:3000 이 등록되어 있는지 확인해 주세요.'));
+      cleanup(new Error(`Kakao 지도 SDK 로드 시간이 초과되었습니다. 카카오 콘솔에 ${window.location.origin} 이 등록되어 있는지 확인해 주세요.`));
     }, 10000);
 
     script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(appKey)}&autoload=false`;
@@ -665,7 +715,7 @@ function loadKakaoMapSdk(appKey) {
     script.onerror = (e) => {
       clearTimeout(timer);
       console.error('[Kakao SDK] 스크립트 로드 실패:', e);
-      cleanup(new Error('Kakao 지도 SDK를 불러오지 못했습니다. 카카오 콘솔의 도메인 등록 상태를 확인해 주세요.'));
+      cleanup(new Error(`Kakao 지도 SDK를 불러오지 못했습니다. 카카오 콘솔의 도메인 등록 상태를 확인해 주세요. 현재 주소: ${window.location.origin}`));
     };
     document.head.appendChild(script);
   });

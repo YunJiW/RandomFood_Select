@@ -5,7 +5,8 @@ const http = require('http');
 const { execFile } = require('child_process');
 
 const RENDERER_DIR = path.join(__dirname, '../renderer');
-const PORT = 3000;
+const DEFAULT_PORT = 3000;
+const DEFAULT_HOST = 'localhost';
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'application/javascript',
@@ -34,6 +35,7 @@ let db;
 let SQL;
 let mainWin;
 let serverUrl;
+let locationConsentGranted = false;
 
 const dbPath = path.join(app.getPath('userData'), 'lunch.db.json');
 
@@ -65,13 +67,26 @@ loadEnvFile();
 
 const kakaoRestApiKey = process.env.KAKAO_REST_API_KEY || '';
 const kakaoMapJsKey = process.env.KAKAO_MAP_JS_KEY || process.env.KAKAO_JAVASCRIPT_KEY || '';
+const serverHost = (process.env.HOST || DEFAULT_HOST).trim() || DEFAULT_HOST;
+const parsedPort = Number.parseInt(process.env.PORT || '', 10);
+const serverPort = Number.isInteger(parsedPort) && parsedPort > 0 && parsedPort <= 65535
+  ? parsedPort
+  : DEFAULT_PORT;
 
 // 렌더러 정적 파일을 제공하는 로컬 서버를 시작한다.
 function startLocalServer() {
   return new Promise((resolve, reject) => {
-    localServer = http.createServer((req, res) => {
+    const createServer = () => http.createServer((req, res) => {
       const urlPath = req.url === '/' ? '/index.html' : req.url.split('?')[0];
       const filePath = path.join(RENDERER_DIR, urlPath);
+
+      const resolvedBase = path.resolve(RENDERER_DIR);
+      const resolvedFile = path.resolve(filePath);
+      if (!resolvedFile.startsWith(resolvedBase + path.sep) && resolvedFile !== resolvedBase) {
+        res.writeHead(403);
+        res.end('Forbidden');
+        return;
+      }
 
       fs.readFile(filePath, (err, data) => {
         if (err) {
@@ -86,8 +101,11 @@ function startLocalServer() {
       });
     });
 
-    localServer.listen(PORT, '127.0.0.1', () => resolve(`http://localhost:${PORT}`));
-    localServer.on('error', reject);
+    localServer = createServer();
+    localServer.once('error', reject);
+    localServer.listen(serverPort, serverHost, () => {
+      resolve(`http://${serverHost}:${serverPort}`);
+    });
   });
 }
 
@@ -391,11 +409,11 @@ function setupPermissionHandlers() {
 
   // 위치 권한만 허용하고 나머지는 기본적으로 허용하지 않는다.
   defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
-    callback(permission === 'geolocation');
+    callback(permission === 'geolocation' ? locationConsentGranted : false);
   });
 
   defaultSession.setPermissionCheckHandler((webContents, permission) => {
-    return permission === 'geolocation';
+    return permission === 'geolocation' ? locationConsentGranted : false;
   });
 }
 
@@ -496,6 +514,11 @@ ipcMain.handle('get-kakao-map-config', () => ({
 // 렌더러에서 요청한 현재 PC 위치를 Windows 위치 서비스로 조회한다.
 ipcMain.handle('get-native-position', async () => {
   return getWindowsNativePosition();
+});
+
+ipcMain.handle('set-location-consent', async (_, allowed) => {
+  locationConsentGranted = allowed === true;
+  return { success: true, allowed: locationConsentGranted };
 });
 
 // 한글 카테고리 또는 키워드로 카카오 장소 검색을 수행한다.
