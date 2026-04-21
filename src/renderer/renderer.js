@@ -24,6 +24,7 @@ let kakaoPlaceInfoWindow = null;
 // 위치 사용 동의 상태는 localStorage에 저장해 재사용한다.
 const MAP_LOCATION_CONSENT_KEY = 'map-location-consent';
 let mapConsentResolver = null;
+let activeSidePanel = null;
 
 // 탭 전환
 document.querySelectorAll('.tab').forEach(tab => {
@@ -106,10 +107,25 @@ function toggleFavOnly() {
 
 // 패널 전환
 function showPanel(name) {
+  const app = document.getElementById('app');
+  const rightPanel = document.getElementById('right');
+  const nextPanel = activeSidePanel === name ? null : name;
+
   document.querySelectorAll('.ptab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.panel-view').forEach(v => v.classList.remove('active'));
-  document.querySelector(`.ptab[onclick="showPanel('${name}')"]`).classList.add('active');
-  document.getElementById(name === 'history' ? 'history-list' : 'stats-content').classList.add('active');
+  activeSidePanel = nextPanel;
+
+  app?.classList.toggle('right-open', Boolean(nextPanel));
+  rightPanel?.classList.toggle('collapsed', !nextPanel);
+
+  if (!nextPanel) {
+    document.querySelector('.btn-clear')?.classList.add('hidden');
+    return;
+  }
+
+  document.querySelector(`.ptab[onclick="showPanel('${nextPanel}')"]`)?.classList.add('active');
+  document.getElementById(nextPanel === 'history' ? 'history-list' : 'stats-content')?.classList.add('active');
+  document.querySelector('.btn-clear')?.classList.toggle('hidden', nextPanel !== 'history');
 }
 
 // 데이터 로드

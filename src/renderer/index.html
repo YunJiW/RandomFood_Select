@@ -20,13 +20,12 @@
 
 <!-- 메인 앱 레이아웃 -->
 <div id="app">
-  <!-- 메뉴 선택, 룰렛, 지도 테스트가 들어가는 왼쪽 영역 -->
+  <!-- 메뉴 선택과 룰렛이 들어가는 왼쪽 영역 -->
   <div id="left">
     <div id="tabs">
       <div class="tab active" data-tab="pick">랜덤 뽑기</div>
       <div class="tab" data-tab="wheel">돌림판</div>
       <div class="tab" data-tab="marble">마블 룰렛</div>
-      <button class="secondary-action-btn compact tab-map-btn" onclick="testCurrentLocationMap()">지도 테스트</button>
     </div>
 
     <div class="tab-content active" id="pick-tab">
@@ -113,15 +112,16 @@
   </div>
 
   <!-- 최근 기록과 통계를 보여주는 오른쪽 패널 -->
-  <div id="right">
+  <div id="right" class="collapsed">
     <div class="panel-header">
       <div class="panel-tabs">
-        <span class="ptab active" onclick="showPanel('history')">최근 기록</span>
+        <span class="ptab" onclick="showPanel('history')">최근 기록</span>
         <span class="ptab" onclick="showPanel('stats')">통계</span>
+        <button class="ptab side-action-btn" onclick="testCurrentLocationMap()">지도 테스트</button>
       </div>
-      <button class="btn-clear" onclick="clearHistory()">전체 삭제</button>
+      <button class="btn-clear hidden" onclick="clearHistory()">전체 삭제</button>
     </div>
-    <div id="history-list" class="panel-view active"></div>
+    <div id="history-list" class="panel-view"></div>
     <div id="stats-content" class="panel-view"></div>
   </div>
 </div>
