@@ -1115,6 +1115,8 @@ let marbleFinished  = false;
 let marbleAnimId    = null;
 let marbleExitOrder = [];
 let mbTrackW        = 360;
+const MB_LAST_STRETCH_Y = 3040;
+const MB_LAST_ONE_WIN_Y = 3000;
 
 // RGB 값을 증감해 구슬 음영 색을 만든다.
 function shadeColor(hex, pct) {
@@ -1266,6 +1268,7 @@ function initMarble() {
   document.getElementById('marble-start-btn').disabled    = false;
   document.getElementById('marble-start-btn').textContent = '출발!';
   document.getElementById('marble-skip-btn').disabled     = true;
+  renderMarbleRanking();
 
   if (!marbleItems.length) {
     drawMarbleTrack(canvas);
@@ -1293,6 +1296,7 @@ function initMarble() {
 
   drawMarbleTrack(canvas);
   drawMinimap(minimap, wrap);
+  renderMarbleRanking();
 }
 
 // 메인 마블 코스 캔버스를 그린다.
@@ -1521,6 +1525,7 @@ function physicsStep() {
   const W      = mbTrackW;
   const exitY  = MB_TRACK_H - 60;
   const active = marbleBalls.filter(b => !b.exited);
+  const lastRemaining = active.length === 1;
 
   // 회전 구조물 각도 업데이트
   marbleRotators.forEach(rot => { rot.angle += rot.speed; });
@@ -1665,10 +1670,17 @@ function physicsStep() {
     if (b._stuckTick > 20) {
       b.vx += (Math.random() - 0.5) * 4;
       b.vy += 2;
+      if (b.y > MB_LAST_STRETCH_Y) b.vy += 2.5;
       if (b._stuckTick > 60) {
-        b.y += 5;
+        b.y += b.y > MB_LAST_STRETCH_Y ? 12 : 5;
         b._stuckTick = 0;
       }
+    }
+
+    if (lastRemaining && b.y > MB_LAST_ONE_WIN_Y && b._stuckTick > 12) {
+      b.exited = true;
+      marbleExitOrder.push(b);
+      return;
     }
 
     if (b.y > exitY) {
@@ -1769,6 +1781,64 @@ function autoScrollToLast() {
   wrap.scrollTop = Math.max(0, last.y - wrap.clientHeight * 0.45);
 }
 
+function getMarbleRankingList(finalWinner = null) {
+  const active = marbleBalls
+    .filter(b => !b.exited)
+    .slice()
+    .sort((a, b) => b.y - a.y);
+
+  const exited = marbleExitOrder
+    .slice()
+    .reverse()
+    .filter(b => !finalWinner || b !== finalWinner);
+
+  if (finalWinner) {
+    return [finalWinner, ...exited];
+  }
+
+  return [...active, ...exited];
+}
+
+function renderMarbleRanking(finalWinner = null) {
+  const rankingEl = document.getElementById('marble-ranking');
+  if (!rankingEl) return;
+
+  const ranking = getMarbleRankingList(finalWinner);
+  if (!ranking.length) {
+    rankingEl.innerHTML = '';
+    return;
+  }
+
+  rankingEl.innerHTML = `
+    <div class="marble-ranking-list">
+      ${ranking.slice(0, 5).map((ball, index) => `
+        <div class="marble-ranking-item">
+          <span class="marble-ranking-name">${escapeHtml(ball.menu.name)}</span>
+          <span class="marble-ranking-state">${finalWinner ? (index === 0 ? '우승' : '종료') : (ball.exited ? '탈락' : '진행중')}</span>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function finalizeMarbleWinner(winner) {
+  if (!winner) return;
+
+  marbleRunning  = false;
+  marbleFinished = true;
+  if (marbleAnimId) {
+    cancelAnimationFrame(marbleAnimId);
+    marbleAnimId = null;
+  }
+
+  document.getElementById('marble-result').textContent    = winner.menu.name + ' 우승!';
+  document.getElementById('marble-start-btn').disabled    = false;
+  document.getElementById('marble-start-btn').textContent = '다시 하기';
+  document.getElementById('marble-skip-btn').disabled     = true;
+  renderMarbleRanking(winner);
+  window.api.recordPick(winner.menu.name).then(() => loadHistory());
+}
+
 // 마블 시뮬레이션 애니메이션을 시작한다.
 function startMarble() {
   if (marbleFinished) { initMarble(); return; }
@@ -1787,16 +1857,16 @@ function startMarble() {
     physicsStep();
     drawMarbleTrack(canvas);
     drawMinimap(minimap, wrap);
+    renderMarbleRanking();
 
-    if (marbleBalls.filter(b => !b.exited).length === 0) {
-      marbleRunning  = false;
-      marbleFinished = true;
-      const winner = marbleExitOrder[marbleExitOrder.length - 1];
-      document.getElementById('marble-result').textContent    = winner.menu.name + ' 우승!';
-      document.getElementById('marble-start-btn').disabled    = false;
-      document.getElementById('marble-start-btn').textContent = '다시 하기';
-      document.getElementById('marble-skip-btn').disabled     = true;
-      window.api.recordPick(winner.menu.name).then(() => loadHistory());
+    const remaining = marbleBalls.filter(b => !b.exited);
+    if (remaining.length === 1) {
+      finalizeMarbleWinner(remaining[0]);
+      return;
+    }
+
+    if (remaining.length === 0) {
+      finalizeMarbleWinner(marbleExitOrder[marbleExitOrder.length - 1]);
       return;
     }
     marbleAnimId = requestAnimationFrame(frame);
@@ -1821,13 +1891,9 @@ function skipMarble() {
   const wrap    = document.getElementById('marble-track-wrap');
   drawMarbleTrack(canvas);
   drawMinimap(minimap, wrap);
+  renderMarbleRanking();
 
-  const winner = marbleExitOrder[marbleExitOrder.length - 1];
-  document.getElementById('marble-result').textContent    = winner.menu.name + ' 우승!';
-  document.getElementById('marble-start-btn').disabled    = false;
-  document.getElementById('marble-start-btn').textContent = '다시 하기';
-  document.getElementById('marble-skip-btn').disabled     = true;
-  window.api.recordPick(winner.menu.name).then(() => loadHistory());
+  finalizeMarbleWinner(marbleExitOrder[marbleExitOrder.length - 1]);
 }
 
 // 초기화
