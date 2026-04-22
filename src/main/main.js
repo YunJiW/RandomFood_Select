@@ -36,6 +36,11 @@ let SQL;
 let mainWin;
 let serverUrl;
 let locationConsentGranted = false;
+let sidePanelExpanded = false;
+
+const COLLAPSED_SIDE_WIDTH = 76;
+const EXPANDED_SIDE_WIDTH = 300;
+const SIDE_PANEL_DELTA = EXPANDED_SIDE_WIDTH - COLLAPSED_SIDE_WIDTH;
 
 const dbPath = path.join(app.getPath('userData'), 'lunch.db.json');
 
@@ -402,6 +407,23 @@ function createWindow() {
   if (!app.isPackaged) mainWin.webContents.openDevTools({ mode: 'right' });
 }
 
+function getWindowBaseMinSize(tab) {
+  return tab === 'marble' ? { width: 780, height: 700 } : { width: 700, height: 600 };
+}
+
+function applyWindowLayout(tab = 'pick', expanded = sidePanelExpanded) {
+  if (!mainWin || mainWin.isMaximized()) return;
+
+  const base = getWindowBaseMinSize(tab);
+  const minWidth = base.width + (expanded ? SIDE_PANEL_DELTA : 0);
+  mainWin.setMinimumSize(minWidth, base.height);
+
+  const [currentWidth, currentHeight] = mainWin.getSize();
+  const targetHeight = tab === 'marble' ? Math.max(currentHeight, 900) : 700;
+  const nextWidth = Math.max(currentWidth, minWidth);
+  mainWin.setSize(nextWidth, targetHeight, true);
+}
+
 // Electron 세션에 위치 권한 처리 핸들러를 등록한다.
 function setupPermissionHandlers() {
   const defaultSession = session.defaultSession;
@@ -568,14 +590,28 @@ ipcMain.on('maximize-app', () => {
 
 // 현재 탭에 맞춰 창 최소 크기와 높이를 조정한다.
 ipcMain.on('resize-for-tab', (_, tab) => {
+  applyWindowLayout(tab, sidePanelExpanded);
+});
+
+ipcMain.on('set-side-panel-open', (_, { open, tab } = {}) => {
   if (!mainWin || mainWin.isMaximized()) return;
 
-  const [width] = mainWin.getSize();
-  if (tab === 'marble') {
-    mainWin.setMinimumSize(700, 700);
-    mainWin.setSize(width, Math.max(mainWin.getSize()[1], 900), true);
-  } else {
-    mainWin.setMinimumSize(700, 600);
-    mainWin.setSize(width, 700, true);
-  }
+  const nextExpanded = open === true;
+  const nextTab = typeof tab === 'string' ? tab : 'pick';
+  const wasExpanded = sidePanelExpanded;
+  sidePanelExpanded = nextExpanded;
+
+  const base = getWindowBaseMinSize(nextTab);
+  const minWidth = base.width + (nextExpanded ? SIDE_PANEL_DELTA : 0);
+  const [currentWidth, currentHeight] = mainWin.getSize();
+  let nextWidth = currentWidth;
+
+  if (nextExpanded && !wasExpanded) nextWidth += SIDE_PANEL_DELTA;
+  if (!nextExpanded && wasExpanded) nextWidth -= SIDE_PANEL_DELTA;
+
+  nextWidth = Math.max(nextWidth, minWidth);
+  const targetHeight = nextTab === 'marble' ? Math.max(currentHeight, 900) : 700;
+
+  mainWin.setMinimumSize(minWidth, base.height);
+  mainWin.setSize(nextWidth, targetHeight, true);
 });

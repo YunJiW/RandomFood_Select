@@ -11,6 +11,7 @@ function escapeHtml(str) {
 let menus     = [];
 let history   = [];
 let weights   = {};   // { menuId: number }
+let marbleCount = {}; // { menuId: number }
 let editingId = null;
 let favOnly   = false;
 const selectedCats = new Set(['한식','중식','일식','양식','분식','기타']);
@@ -25,15 +26,18 @@ let kakaoPlaceInfoWindow = null;
 const MAP_LOCATION_CONSENT_KEY = 'map-location-consent';
 let mapConsentResolver = null;
 let activeSidePanel = null;
+let activeMainTab = 'pick';
 
 // 탭 전환
 document.querySelectorAll('.tab').forEach(tab => {
   tab.addEventListener('click', () => {
+    activeMainTab = tab.dataset.tab;
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     tab.classList.add('active');
     document.getElementById(tab.dataset.tab + '-tab').classList.add('active');
     window.api.resizeForTab(tab.dataset.tab);
+    syncRightPanel();
     if (tab.dataset.tab === 'wheel') setTimeout(() => { renderWeightList(); drawWheel(wheelAngle); }, 40);
     if (tab.dataset.tab === 'marble') setTimeout(() => initMarble(), 40);
   });
@@ -108,26 +112,52 @@ function toggleFavOnly() {
 
 // 패널 전환
 function showPanel(name) {
+  if (activeMainTab === 'marble') return;
+  const nextPanel = activeSidePanel === name ? null : name;
+  activeSidePanel = nextPanel;
+  syncRightPanel();
+}
+
+function syncRightPanel() {
   const app = document.getElementById('app');
   const rightPanel = document.getElementById('right');
-  const nextPanel = activeSidePanel === name ? null : name;
+  const isMarbleTab = activeMainTab === 'marble';
+  const shouldOpen = isMarbleTab || Boolean(activeSidePanel);
 
   document.querySelectorAll('.ptab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.panel-view').forEach(v => v.classList.remove('active'));
-  activeSidePanel = nextPanel;
 
-  app?.classList.toggle('right-open', Boolean(nextPanel));
-  rightPanel?.classList.toggle('collapsed', !nextPanel);
+  app?.classList.toggle('right-open', shouldOpen);
+  app?.classList.toggle('marble-right-open', isMarbleTab && shouldOpen);
+  rightPanel?.classList.toggle('collapsed', !shouldOpen);
+  rightPanel?.classList.toggle('marble-mode', isMarbleTab);
+  window.api.setSidePanelOpen?.(shouldOpen, activeMainTab);
 
-  if (!nextPanel) {
+  if (!shouldOpen) {
     document.querySelector('.btn-clear')?.classList.add('hidden');
     return;
   }
 
-  document.querySelector(`.ptab[onclick="showPanel('${nextPanel}')"]`)?.classList.add('active');
-  document.getElementById(nextPanel === 'history' ? 'history-list' : 'stats-content')?.classList.add('active');
-  document.querySelector('.btn-clear')?.classList.toggle('hidden', nextPanel !== 'history');
+  if (isMarbleTab) {
+    document.getElementById('marble-side-panel')?.classList.add('active');
+    document.querySelector('.btn-clear')?.classList.add('hidden');
+    return;
+  }
+
+  if (!activeSidePanel) {
+    document.querySelector('.btn-clear')?.classList.add('hidden');
+    return;
+  }
+
+  document.querySelector(`.ptab[onclick="showPanel('${activeSidePanel}')"]`)?.classList.add('active');
+  document.getElementById(activeSidePanel === 'history' ? 'history-list' : 'stats-content')?.classList.add('active');
+  document.querySelector('.btn-clear')?.classList.toggle('hidden', activeSidePanel !== 'history');
 }
+
+window.addEventListener('resize', () => {
+  syncRightPanel();
+  if (activeMainTab === 'marble') setTimeout(() => initMarble(), 0);
+});
 
 // 데이터 로드
 async function loadAll() { await loadMenus(); await loadHistory(); }
@@ -142,6 +172,11 @@ async function loadKakaoMapConfig() {
 async function loadMenus() {
   menus = await window.api.getMenus();
   menus.forEach(m => { if (weights[m.id] === undefined) weights[m.id] = 1; });
+  const activeIds = new Set(menus.map(m => String(m.id)));
+  Object.keys(marbleCount).forEach(id => {
+    if (!activeIds.has(String(id))) delete marbleCount[id];
+  });
+  menus.forEach(m => { if (marbleCount[m.id] === undefined) marbleCount[m.id] = 1; });
   renderMenus();
   updatePickInfo();
   renderWeightList();
@@ -261,6 +296,76 @@ function resetWeights() {
   showToast('가중치 초기화 완료');
 }
 
+function getMarbleCount(id) {
+  return Math.min(5, Math.max(1, parseInt(marbleCount[id], 10) || 1));
+}
+
+function buildMarbleItems() {
+  const items = [];
+  menus.filter(m => !m.excluded).forEach(menu => {
+    const count = getMarbleCount(menu.id);
+    for (let i = 0; i < count; i++) {
+      items.push({
+        menu,
+        countIndex: i + 1,
+        label: count > 1 ? `${menu.name} #${i + 1}` : menu.name,
+      });
+    }
+  });
+  return items;
+}
+
+function renderMarbleCountList() {
+  const list = document.getElementById('marble-count-list');
+  if (!list) return;
+
+  const activeMenus = menus.filter(m => !m.excluded);
+  const totalBalls = activeMenus.reduce((sum, menu) => sum + getMarbleCount(menu.id), 0);
+
+  if (!menus.length) {
+    list.innerHTML = '<div class="empty-state">메뉴가 없습니다.</div>';
+    return;
+  }
+
+  list.innerHTML = menus.map(menu => {
+    const count = getMarbleCount(menu.id);
+    const excluded = !!menu.excluded;
+    const pct = excluded || totalBalls === 0 ? 0 : Math.round((count / totalBalls) * 100);
+    return `
+      <div class="weight-item ${excluded ? 'excluded' : ''}">
+        <span class="weight-pct">${count}개</span>
+        <span class="weight-name" title="${escapeHtml(menu.name)}">${escapeHtml(menu.name)}</span>
+        <div class="weight-controls">
+          <span class="weight-pct">${pct}%</span>
+          <button class="wc-btn" onclick="adjustMarbleCount(${menu.id}, -1)" ${excluded || count <= 1 ? 'disabled' : ''}>−</button>
+          <input class="wc-input" type="number" min="1" max="5" value="${count}"
+            onchange="setMarbleCount(${menu.id}, this.value)"
+            oninput="setMarbleCount(${menu.id}, this.value)"
+            ${excluded ? 'disabled' : ''} />
+          <button class="wc-btn" onclick="adjustMarbleCount(${menu.id}, 1)" ${excluded || count >= 5 ? 'disabled' : ''}>+</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function adjustMarbleCount(id, delta) {
+  marbleCount[id] = Math.min(5, Math.max(1, getMarbleCount(id) + delta));
+  initMarble();
+}
+
+function setMarbleCount(id, value) {
+  const next = parseInt(value, 10);
+  if (Number.isNaN(next)) return;
+  marbleCount[id] = Math.min(5, Math.max(1, next));
+  initMarble();
+}
+
+function resetMarbleCounts() {
+  menus.forEach(menu => { marbleCount[menu.id] = 1; });
+  initMarble();
+  showToast('마블 구슬 수량 초기화 완료');
+}
+
 // 메뉴 CRUD
 async function addMenu() {
   const nameEl = document.getElementById('new-name');
@@ -285,6 +390,7 @@ async function addMenuFromWheel() {
 async function deleteMenu(id) {
   const menu = menus.find(m => m.id === id);
   delete weights[id];
+  delete marbleCount[id];
   await window.api.deleteMenu(id);
   await loadMenus();
   showToast(`"${menu.name}" 삭제됨`);
@@ -1212,7 +1318,7 @@ function generateBumpers(W) {
 
 // 현재 메뉴 목록을 바탕으로 마블 시뮬레이션 상태를 초기화한다.
 function initMarble() {
-  marbleItems     = menus.filter(m => !m.excluded);
+  marbleItems     = buildMarbleItems();
   marbleExitOrder = [];
   marbleRunning   = false;
   marbleFinished  = false;
@@ -1268,6 +1374,7 @@ function initMarble() {
   document.getElementById('marble-start-btn').disabled    = false;
   document.getElementById('marble-start-btn').textContent = '출발!';
   document.getElementById('marble-skip-btn').disabled     = true;
+  renderMarbleCountList();
   renderMarbleRanking();
 
   if (!marbleItems.length) {
@@ -1277,12 +1384,14 @@ function initMarble() {
   }
 
   const padding = MB_MARBLE_R * 4;
-  marbleItems.forEach((m, i) => {
+  marbleItems.forEach((item, i) => {
     const t = marbleItems.length > 1 ? i / (marbleItems.length - 1) : 0.5;
     const x = padding + t * (mbTrackW - padding * 2) + (Math.random() - 0.5) * 6;
     const y = 30 + Math.random() * 20;
     marbleBalls.push({
-      menu      : m,
+      menu      : item.menu,
+      label     : item.label,
+      countIndex: item.countIndex,
       color     : MARBLE_COLORS[i % MARBLE_COLORS.length],
       x, y,
       vx        : (Math.random() - 0.5) * 1.2,
@@ -1415,7 +1524,7 @@ function drawMarbleTrack(canvas) {
     ctx.textAlign = 'left';
     const names = marbleExitOrder.map((b, idx) =>
       idx === marbleExitOrder.length - 1 && marbleFinished
-        ? '[우승] ' + b.menu.name : b.menu.name
+        ? '[우승] ' + b.label : b.label
     ).join(' > ');
     ctx.fillText(names, 8, 14);
   }
@@ -1439,7 +1548,7 @@ function drawMarbleTrack(canvas) {
     ctx.fill();
 
     // 이름 라벨
-    const rawName = b.menu.name;
+    const rawName = b.label;
     const labelText = rawName.length > 5 ? rawName.slice(0, 4) + '..' : rawName;
     ctx.font = 'bold 8px Pretendard, sans-serif';
     ctx.textAlign = 'center';
@@ -1813,7 +1922,7 @@ function renderMarbleRanking(finalWinner = null) {
     <div class="marble-ranking-list">
       ${ranking.slice(0, 5).map((ball, index) => `
         <div class="marble-ranking-item">
-          <span class="marble-ranking-name">${escapeHtml(ball.menu.name)}</span>
+          <span class="marble-ranking-name">${escapeHtml(ball.label || ball.menu.name)}</span>
           <span class="marble-ranking-state">${finalWinner ? (index === 0 ? '우승' : '종료') : (ball.exited ? '탈락' : '진행중')}</span>
         </div>
       `).join('')}
@@ -1855,6 +1964,7 @@ function startMarble() {
 
   function frame() {
     physicsStep();
+    // autoScrollToLast();
     drawMarbleTrack(canvas);
     drawMinimap(minimap, wrap);
     renderMarbleRanking();

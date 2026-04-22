@@ -20,4 +20,5 @@ contextBridge.exposeInMainWorld('api', {
   minimizeApp:   ()           => ipcRenderer.send('minimize-app'),
   maximizeApp:   ()           => ipcRenderer.send('maximize-app'),
   resizeForTab:  (tab)        => ipcRenderer.send('resize-for-tab', tab),
+  setSidePanelOpen: (open, tab) => ipcRenderer.send('set-side-panel-open', { open, tab }),
 });

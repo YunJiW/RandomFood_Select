@@ -69,6 +69,7 @@ body {
 /* ── Layout ── */
 #app { display: grid; grid-template-columns: 1fr 76px; grid-template-rows: 1fr; flex: 1; min-height: 0; overflow: hidden; transition: grid-template-columns 0.22s ease; }
 #app.right-open { grid-template-columns: 1fr 300px; }
+#app.marble-right-open { grid-template-columns: minmax(0, 1fr) 260px; }
 
 /* ── Left Panel ── */
 #left { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--border); overflow: hidden; }
@@ -589,17 +590,49 @@ body {
 
 /* ── 마블 룰렛 탭 ── */
 #marble-tab { flex-direction: column; align-items: stretch; gap: 10px; padding: 12px; overflow: hidden; }
-#marble-layout { display: flex; gap: 8px; flex: 1; min-height: 0; overflow: hidden; }
+#marble-layout { display: flex; gap: 8px; flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
+.marble-count-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+#marble-count-list {
+  max-height: 154px;
+  overflow-y: auto;
+  padding: 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+#marble-count-list::-webkit-scrollbar { width: 3px; }
+#marble-count-list::-webkit-scrollbar-track { background: transparent; }
+#marble-count-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+#marble-count-list .weight-pct {
+  min-width: 42px;
+}
 #marbleMinimap {
   flex-shrink: 0; width: 68px; min-height: 0; align-self: stretch;
   border-radius: 6px; border: 1px solid var(--border);
   background: var(--surface); display: block;
 }
-#marble-track-wrap {
+#app.marble-right-open #marble-layout { gap: 6px; }
+#app.marble-right-open #marbleMinimap { width: 56px; }
+#marble-track-panel {
   position: relative;
-  flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+#marble-track-wrap {
+  flex: 1; min-height: 0; min-width: 0; overflow-y: auto; overflow-x: hidden;
   border-radius: 8px; border: 1px solid var(--border);
   background: var(--surface);
+  height: 100%;
 }
 #marble-track-wrap::-webkit-scrollbar { width: 3px; }
 #marble-track-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
@@ -644,6 +677,12 @@ body {
   overflow: hidden;
   z-index: 3;
 }
+#app.marble-right-open .marble-ranking {
+  top: 8px;
+  right: 8px;
+  width: min(160px, calc(100% - 16px));
+  padding: 8px 10px;
+}
 .marble-ranking:empty { display: none; }
 .marble-ranking-list {
   display: flex;
@@ -670,6 +709,12 @@ body {
   flex-shrink: 0;
   font-size: 10px;
   color: var(--muted);
+}
+
+@media (max-width: 860px) {
+  #marble-count-list {
+    max-height: 124px;
+  }
 }
 
 /* ── Right Panel (History) ── */
@@ -715,6 +760,24 @@ body {
   border-color: var(--accent);
   color: var(--accent);
   background: rgba(255,107,53,0.08);
+}
+#right.marble-mode .panel-header {
+  display: none;
+}
+.marble-side-view {
+  padding: 12px;
+  overflow: hidden;
+}
+.marble-side-view.active {
+  display: flex;
+}
+.marble-side-view .marble-count-panel {
+  flex: 1;
+  min-height: 0;
+}
+.marble-side-view #marble-count-list {
+  flex: 1;
+  max-height: none;
 }
 .panel-header {
   padding: 13px 14px 11px;

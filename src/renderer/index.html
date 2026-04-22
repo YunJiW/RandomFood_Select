@@ -73,8 +73,10 @@
     <div class="tab-content" id="marble-tab">
       <div id="marble-layout">
         <canvas id="marbleMinimap"></canvas>
-        <div id="marble-track-wrap">
-          <canvas id="marbleCanvas"></canvas>
+        <div id="marble-track-panel">
+          <div id="marble-track-wrap">
+            <canvas id="marbleCanvas"></canvas>
+          </div>
           <div id="marble-ranking" class="marble-ranking"></div>
         </div>
       </div>
@@ -127,6 +129,15 @@
     </div>
     <div id="history-list" class="panel-view"></div>
     <div id="stats-content" class="panel-view"></div>
+    <div id="marble-side-panel" class="panel-view marble-side-view">
+      <div class="marble-count-panel">
+        <div class="weight-header">
+          <h3>구슬 수량 설정</h3>
+          <button class="btn-reset-weights" onclick="resetMarbleCounts()">초기화</button>
+        </div>
+        <div id="marble-count-list"></div>
+      </div>
+    </div>
   </div>
 </div>
 
