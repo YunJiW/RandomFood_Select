@@ -44,7 +44,10 @@
           <div id="result-category">메뉴를 뽑아보세요</div>
           <div id="result-name">?</div>
         </div>
-        <button id="pick-btn" onclick="pickRandom()">뽑기!</button>
+        <div class="pick-action-row">
+          <button id="pick-btn" onclick="pickRandom()">뽑기!</button>
+          <button id="pick-map-btn" class="secondary-action-btn" onclick="openPickedMenuMap()" disabled>근처 가게 찾기</button>
+        </div>
         <div id="pick-options">
           <label class="opt-label">
             쿨다운

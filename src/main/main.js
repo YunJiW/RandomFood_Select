@@ -387,6 +387,81 @@ function getWindowsNativePosition() {
 }
 
 // 메인 브라우저 창을 생성하고 초기 화면을 연다.
+function getWindowsNativePosition() {
+  return new Promise((resolve, reject) => {
+    if (process.platform !== 'win32') {
+      reject(new Error('Windows 네이티브 위치 조회를 지원하지 않는 플랫폼입니다.'));
+      return;
+    }
+
+    const psScript = [
+      '[Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false)',
+      '[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)',
+      '$OutputEncoding = [System.Text.UTF8Encoding]::new($false)',
+      'try {',
+      '  Add-Type -AssemblyName System.Device',
+      '  $watcher = New-Object System.Device.Location.GeoCoordinateWatcher([System.Device.Location.GeoPositionAccuracy]::Default)',
+      '  $watcher.Start()',
+      '  for ($i = 0; $i -lt 8; $i++) {',
+      '    Start-Sleep -Milliseconds 500',
+      '    if ($watcher.Position.Location.IsUnknown -eq $false) { break }',
+      '  }',
+      '  $coord = $watcher.Position.Location',
+      '  if ($coord.IsUnknown) {',
+      '    throw "Windows 위치 서비스에서 좌표를 받지 못했습니다."',
+      '  }',
+      '  $accuracy = 0',
+      '  if ($coord.HorizontalAccuracy -gt 0) {',
+      '    $accuracy = $coord.HorizontalAccuracy',
+      '  }',
+      '  @{',
+      '    ok = $true',
+      '    latitude = $coord.Latitude',
+      '    longitude = $coord.Longitude',
+      '    accuracy = $accuracy',
+      '  } | ConvertTo-Json -Compress',
+      '} catch {',
+      '  @{ ok = $false; message = $_.Exception.Message } | ConvertTo-Json -Compress',
+      '  exit 1',
+      '}',
+    ].join('\n');
+
+    execFile(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', psScript],
+      { windowsHide: true, timeout: 7000 },
+      (error, stdout, stderr) => {
+        try {
+          const parsed = JSON.parse((stdout || '').trim());
+          if (parsed?.ok === false) {
+            reject(new Error(parsed.message || 'Windows 위치 조회에 실패했습니다.'));
+            return;
+          }
+          if (!Number.isFinite(parsed.latitude) || !Number.isFinite(parsed.longitude)) {
+            reject(new Error('Windows 위치 조회 결과가 올바르지 않습니다.'));
+            return;
+          }
+
+          resolve({
+            coords: {
+              latitude: Number(parsed.latitude),
+              longitude: Number(parsed.longitude),
+              accuracy: Number(parsed.accuracy) || 0,
+            },
+            source: 'native',
+          });
+        } catch (parseError) {
+          if (error) {
+            reject(new Error(stderr?.trim() || stdout.trim() || error.message || 'Windows 위치 조회 실행에 실패했습니다.'));
+            return;
+          }
+          reject(new Error(stdout.trim() || 'Windows 위치 조회 결과를 해석하지 못했습니다.'));
+        }
+      }
+    );
+  });
+}
+
 function createWindow() {
   mainWin = new BrowserWindow({
     width: 900,

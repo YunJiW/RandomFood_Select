@@ -27,6 +27,7 @@ const MAP_LOCATION_CONSENT_KEY = 'map-location-consent';
 let mapConsentResolver = null;
 let activeSidePanel = null;
 let activeMainTab = 'pick';
+let latestPickedMenuName = '';
 
 // 탭 전환
 document.querySelectorAll('.tab').forEach(tab => {
@@ -443,6 +444,8 @@ async function pickRandom() {
     card.classList.add('glow'); setTimeout(() => card.classList.remove('glow'), 2000);
     await window.api.recordPick(picked.name);
     await loadHistory();
+    latestPickedMenuName = picked.name;
+    syncPickedMenuMapButton();
   }, 1000);
 }
 
@@ -532,7 +535,42 @@ function hideMapPanel() {
   document.getElementById('map-test-panel').classList.remove('show');
 }
 
+function syncPickedMenuMapButton() {
+  const btn = document.getElementById('pick-map-btn');
+  if (!btn) return;
+  btn.disabled = !latestPickedMenuName;
+}
+
+async function showPickedMenuMap(menuName, sourceLabel = '메뉴 추천') {
+  const keyword = String(menuName || '').trim();
+  if (!keyword) return;
+
+  const keywordInput = document.getElementById('map-search-keyword');
+  if (keywordInput) keywordInput.value = keyword;
+
+  try {
+    await testCurrentLocationMap({ skipAutoSearch: true });
+    if (!kakaoMapInstance) return;
+
+    await searchPlacesOnMap({
+      keyword,
+      silentOnMapInit: true,
+      baseStatusMessage: `${sourceLabel} 결과 "${keyword}" 기준으로 주변 지도를 불러왔습니다.`,
+    });
+  } catch (error) {
+    console.error('[map] picked menu map open failed:', error);
+  }
+}
+
 // 사용자가 체크박스로 현재 위치 사용을 허용했는지 확인한다.
+async function openPickedMenuMap() {
+  if (!latestPickedMenuName) {
+    showToast('먼저 메뉴를 뽑아주세요.', true);
+    return;
+  }
+  await showPickedMenuMap(latestPickedMenuName, '랜덤 뽑기');
+}
+
 function hasLocationConsent() {
   return document.getElementById('map-location-consent')?.checked === true;
 }
@@ -938,10 +976,16 @@ async function testCurrentLocationMap(options = {}) {
     clearPlaceMarkers();
     renderMapSearchResults([]);
     const loadedMessage = position.source === 'ip'
-      ? `정확한 현재 위치를 가져오지 못해 IP 기반 대략 위치로 지도를 불러왔습니다.${position.fallbackReason ? ` (${position.fallbackReason})` : ''}`
+      ? '정확한 현재 위치를 가져오지 못해 IP 기반 대략 위치로 지도를 불러왔습니다.'
       : position.source === 'native'
-        ? `브라우저 위치 조회는 실패했지만 Windows 위치 서비스로 지도를 불러왔습니다.${position.fallbackReason ? ` (${position.fallbackReason})` : ''}`
-      : '실제 기기 위치 기반 지도를 불러왔습니다.';
+        ? '브라우저 위치 조회는 실패했지만 Windows 위치 서비스로 지도를 불러왔습니다.'
+        : '실제 기기 위치 기반 지도를 불러왔습니다.';
+    if (position.fallbackReason) {
+      console.info('[map] location fallback reason:', position.fallbackReason, {
+        source: position.source,
+        coords: position.coords,
+      });
+    }
     setMapStatus(loadedMessage);
     showToast(position.source === 'ip'
       ? 'IP 기반 대략 위치로 지도를 불러왔습니다.'
