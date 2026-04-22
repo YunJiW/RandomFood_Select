@@ -483,7 +483,7 @@ function createWindow() {
 }
 
 function getWindowBaseMinSize(tab) {
-  return tab === 'marble' ? { width: 780, height: 700 } : { width: 700, height: 600 };
+  return tab === 'marble' ? { width: 920, height: 700 } : { width: 700, height: 600 };
 }
 
 function applyWindowLayout(tab = 'pick', expanded = sidePanelExpanded) {

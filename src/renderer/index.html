@@ -159,6 +159,14 @@
           <h3>구슬 수량 설정</h3>
           <button class="btn-reset-weights" onclick="resetMarbleCounts()">초기화</button>
         </div>
+        <div class="wheel-add-bar marble-add-bar">
+          <input type="text" id="marble-new-name" placeholder="메뉴 추가" />
+          <select id="marble-new-category">
+            <option>한식</option><option>중식</option><option>일식</option>
+            <option>양식</option><option>분식</option><option>기타</option>
+          </select>
+          <button class="btn-add" onclick="addMenuFromMarble()">+</button>
+        </div>
         <div id="marble-count-list"></div>
       </div>
     </div>

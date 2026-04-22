@@ -69,7 +69,7 @@ body {
 /* ── Layout ── */
 #app { display: grid; grid-template-columns: 1fr 76px; grid-template-rows: 1fr; flex: 1; min-height: 0; overflow: hidden; transition: grid-template-columns 0.22s ease; }
 #app.right-open { grid-template-columns: 1fr 300px; }
-#app.marble-right-open { grid-template-columns: minmax(0, 1fr) 260px; }
+#app.marble-right-open { grid-template-columns: minmax(0, 1fr) 232px; }
 
 /* ── Left Panel ── */
 #left { display: flex; min-height: 0; overflow: hidden; }
@@ -696,11 +696,46 @@ body {
   flex-direction: column;
   gap: 4px;
 }
+.marble-add-bar {
+  border-bottom: 1px solid var(--border);
+}
 #marble-count-list::-webkit-scrollbar { width: 3px; }
 #marble-count-list::-webkit-scrollbar-track { background: transparent; }
 #marble-count-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+#marble-count-list .weight-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "name count"
+    "controls controls";
+  align-items: start;
+  gap: 6px 8px;
+}
+#marble-count-list .weight-name {
+  grid-area: name;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.35;
+  word-break: keep-all;
+}
+#marble-count-list .marble-count-value {
+  grid-area: count;
+}
+#marble-count-list .marble-count-controls {
+  grid-area: controls;
+  width: 100%;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
 #marble-count-list .weight-pct {
   min-width: 42px;
+}
+#marble-count-list .marble-probability {
+  margin-right: auto;
+}
+#marble-count-list .wc-del {
+  margin-left: 2px;
 }
 #marbleMinimap {
   flex-shrink: 0; width: 68px; min-height: 0; align-self: stretch;
@@ -708,7 +743,7 @@ body {
   background: var(--surface); display: block;
 }
 #app.marble-right-open #marble-layout { gap: 6px; }
-#app.marble-right-open #marbleMinimap { width: 56px; }
+#app.marble-right-open #marbleMinimap { width: 48px; }
 #marble-track-panel {
   position: relative;
   flex: 1;
@@ -769,7 +804,7 @@ body {
 #app.marble-right-open .marble-ranking {
   top: 8px;
   right: 8px;
-  width: min(160px, calc(100% - 16px));
+  width: min(136px, calc(100% - 16px));
   padding: 8px 10px;
 }
 .marble-ranking:empty { display: none; }

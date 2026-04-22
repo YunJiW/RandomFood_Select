@@ -51,6 +51,7 @@ document.querySelectorAll('.tab').forEach(tab => {
 
 document.getElementById('new-name').addEventListener('keydown', e => { if (e.key === 'Enter') addMenu(); });
 document.getElementById('wheel-new-name').addEventListener('keydown', e => { if (e.key === 'Enter') addMenuFromWheel(); });
+document.getElementById('marble-new-name').addEventListener('keydown', e => { if (e.key === 'Enter') addMenuFromMarble(); });
 document.getElementById('map-search-keyword').addEventListener('keydown', e => { if (e.key === 'Enter') searchPlacesOnMap(); });
 
 function isTypingTarget(target) {
@@ -356,16 +357,17 @@ function renderMarbleCountList() {
     const pct = excluded || totalBalls === 0 ? 0 : Math.round((count / totalBalls) * 100);
     return `
       <div class="weight-item ${excluded ? 'excluded' : ''}">
-        <span class="weight-pct">${count}개</span>
+        <span class="weight-pct marble-count-value">${count}개</span>
         <span class="weight-name" title="${escapeHtml(menu.name)}">${escapeHtml(menu.name)}</span>
-        <div class="weight-controls">
-          <span class="weight-pct">${pct}%</span>
+        <div class="weight-controls marble-count-controls">
+          <span class="weight-pct marble-probability">${pct}%</span>
           <button class="wc-btn" onclick="adjustMarbleCount(${menu.id}, -1)" ${excluded || count <= 1 ? 'disabled' : ''}>−</button>
           <input class="wc-input" type="number" min="1" max="5" value="${count}"
             onchange="setMarbleCount(${menu.id}, this.value)"
             oninput="setMarbleCount(${menu.id}, this.value)"
             ${excluded ? 'disabled' : ''} />
           <button class="wc-btn" onclick="adjustMarbleCount(${menu.id}, 1)" ${excluded || count >= 5 ? 'disabled' : ''}>+</button>
+          <button class="wc-btn wc-del" onclick="deleteMenu(${menu.id})">✕</button>
         </div>
       </div>`;
   }).join('');
@@ -403,6 +405,16 @@ async function addMenu() {
 async function addMenuFromWheel() {
   const nameEl = document.getElementById('wheel-new-name');
   const catEl  = document.getElementById('wheel-new-category');
+  const name   = nameEl.value.trim();
+  if (!name) return;
+  const res = await window.api.addMenu({ name, category: catEl.value });
+  if (res.success) { nameEl.value = ''; await loadMenus(); showToast(`"${name}" 추가됨`); }
+  else showToast(res.error, true);
+}
+
+async function addMenuFromMarble() {
+  const nameEl = document.getElementById('marble-new-name');
+  const catEl  = document.getElementById('marble-new-category');
   const name   = nameEl.value.trim();
   if (!name) return;
   const res = await window.api.addMenu({ name, category: catEl.value });
