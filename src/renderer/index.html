@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>랜덤 푸드 셀렉트</title>
+  <title>오늘 뭐 먹지?</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <!-- 사용자 지정 타이틀바 -->
 <div id="titlebar">
-  <span>랜덤 푸드 셀렉트</span>
+  <span>오늘 뭐 먹지?</span>
   <div class="win-btns">
     <button class="dot g" onclick="window.api.maximizeApp()" title="최대화"></button>
     <button class="dot y" onclick="window.api.minimizeApp()" title="최소화"></button>
@@ -22,10 +22,21 @@
 <div id="app">
   <!-- 메뉴 선택과 룰렛이 들어가는 왼쪽 영역 -->
   <div id="left">
-    <div id="tabs">
-      <div class="tab active" data-tab="pick">랜덤 뽑기</div>
-      <div class="tab" data-tab="wheel">돌림판</div>
-      <div class="tab" data-tab="marble">마블 룰렛</div>
+    <div id="left-sidebar">
+      <div id="tabs">
+        <div class="tab active" data-tab="pick">
+          <span class="tab-kicker">PICK</span>
+          <span class="tab-label">랜덤 뽑기</span>
+        </div>
+        <div class="tab" data-tab="wheel">
+          <span class="tab-kicker">WHEEL</span>
+          <span class="tab-label">돌림판</span>
+        </div>
+        <div class="tab" data-tab="marble">
+          <span class="tab-kicker">MARBLE</span>
+          <span class="tab-label">마블 룰렛</span>
+        </div>
+      </div>
     </div>
 
     <div id="left-body">
@@ -107,7 +118,26 @@
           <button id="wheel-map-btn" class="wheel-secondary-btn" onclick="openWheelPickedMenuMap()" disabled>근처 가게 찾기</button>
         </div>
       </div>
-      <div id="wheel-right">
+    </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 최근 기록과 통계를 보여주는 오른쪽 패널 -->
+  <div id="right" class="collapsed">
+    <div class="panel-header">
+      <div class="panel-tabs">
+        <span class="ptab" data-panel="history" onclick="showPanel('history')">최근 기록</span>
+        <span class="ptab" data-panel="stats" onclick="showPanel('stats')">통계</span>
+        <span class="ptab wheel-only-tab" data-panel="weights" onclick="showPanel('weights')">가중치</span>
+        <button class="ptab side-action-btn" onclick="testCurrentLocationMap()">지도 테스트</button>
+      </div>
+      <button class="btn-clear hidden" onclick="clearHistory()">전체 삭제</button>
+    </div>
+    <div id="history-list" class="panel-view"></div>
+    <div id="stats-content" class="panel-view"></div>
+    <div id="wheel-side-panel" class="panel-view side-config-view">
+      <div class="side-config-panel">
         <div class="weight-header">
           <h3>메뉴 가중치 설정</h3>
           <button class="btn-reset-weights" onclick="resetWeights()">초기화</button>
@@ -123,22 +153,6 @@
         <div id="weight-list"></div>
       </div>
     </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- 최근 기록과 통계를 보여주는 오른쪽 패널 -->
-  <div id="right" class="collapsed">
-    <div class="panel-header">
-      <div class="panel-tabs">
-        <span class="ptab" onclick="showPanel('history')">최근 기록</span>
-        <span class="ptab" onclick="showPanel('stats')">통계</span>
-        <button class="ptab side-action-btn" onclick="testCurrentLocationMap()">지도 테스트</button>
-      </div>
-      <button class="btn-clear hidden" onclick="clearHistory()">전체 삭제</button>
-    </div>
-    <div id="history-list" class="panel-view"></div>
-    <div id="stats-content" class="panel-view"></div>
     <div id="marble-side-panel" class="panel-view marble-side-view">
       <div class="marble-count-panel">
         <div class="weight-header">

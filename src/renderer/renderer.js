@@ -34,6 +34,9 @@ let mapPanelRequestToken = 0;
 // 탭 전환
 document.querySelectorAll('.tab').forEach(tab => {
   tab.addEventListener('click', () => {
+    if (activeSidePanel === 'weights' && tab.dataset.tab !== 'wheel') {
+      activeSidePanel = null;
+    }
     activeMainTab = tab.dataset.tab;
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -124,6 +127,7 @@ function toggleFavOnly() {
 // 패널 전환
 function showPanel(name) {
   if (activeMainTab === 'marble') return;
+  if (name === 'weights' && activeMainTab !== 'wheel') return;
   const nextPanel = activeSidePanel === name ? null : name;
   activeSidePanel = nextPanel;
   syncRightPanel();
@@ -133,6 +137,7 @@ function syncRightPanel() {
   const app = document.getElementById('app');
   const rightPanel = document.getElementById('right');
   const isMarbleTab = activeMainTab === 'marble';
+  const isWheelTab = activeMainTab === 'wheel';
   const shouldOpen = isMarbleTab || Boolean(activeSidePanel);
 
   document.querySelectorAll('.ptab').forEach(t => t.classList.remove('active'));
@@ -142,6 +147,7 @@ function syncRightPanel() {
   app?.classList.toggle('marble-right-open', isMarbleTab && shouldOpen);
   rightPanel?.classList.toggle('collapsed', !shouldOpen);
   rightPanel?.classList.toggle('marble-mode', isMarbleTab);
+  rightPanel?.classList.toggle('wheel-mode', isWheelTab);
   window.api.setSidePanelOpen?.(shouldOpen, activeMainTab);
 
   if (!shouldOpen) {
@@ -160,8 +166,14 @@ function syncRightPanel() {
     return;
   }
 
-  document.querySelector(`.ptab[onclick="showPanel('${activeSidePanel}')"]`)?.classList.add('active');
-  document.getElementById(activeSidePanel === 'history' ? 'history-list' : 'stats-content')?.classList.add('active');
+  document.querySelector(`.ptab[data-panel="${activeSidePanel}"]`)?.classList.add('active');
+  const panelViewMap = {
+    history: 'history-list',
+    stats: 'stats-content',
+    weights: 'wheel-side-panel',
+  };
+  const activePanelId = panelViewMap[activeSidePanel];
+  document.getElementById(activePanelId)?.classList.add('active');
   document.querySelector('.btn-clear')?.classList.toggle('hidden', activeSidePanel !== 'history');
 }
 
