@@ -1328,12 +1328,13 @@ const MB_ZONES = [
   { y1: 2370, y2: 3010, label: 'EXIT',   bg: 'rgba(255,209,102,0.04)' },
 ];
 
-let marbleItems     = [];
-let marbleBalls     = [];
-let marblePegs      = [];
-let marbleBumpers   = [];
-let marbleRotators  = [];
-let marbleRunning   = false;
+let marbleItems          = [];
+let marbleBalls          = [];
+let marblePegs           = [];
+let marbleBumpers        = [];
+let marbleSpringBumpers  = [];
+let marbleRotators       = [];
+let marbleRunning        = false;
 let marbleFinished  = false;
 let marbleAnimId    = null;
 let marbleExitOrder = [];
@@ -1367,9 +1368,9 @@ function generatePegs(W) {
   const m  = MB_MARBLE_R * 3 + MB_PEG_R;
   const uW = W - m * 2;
 
-  // Zone 1 ENTRY 핀 배치 7줄
+  // Zone 1 ENTRY 핀 배치 7줄 (스프링 범퍼 공간 확보를 위해 아래로 이동)
   for (let row = 0; row < 7; row++) {
-    const y    = 100 + row * 84;
+    const y    = 300 + row * 62;
     const even = row % 2 === 0;
     const cols = even ? 7 : 6;
     const step = uW / cols;
@@ -1413,9 +1414,24 @@ function generatePegs(W) {
 
 }
 
+// ENTRY 구역 스프링 범퍼(대형 원형 장애물)를 생성한다.
+function generateSpringBumpers(W) {
+  marbleSpringBumpers = [
+    { x: W * 0.22, y: 175, r: 18, color: '#ff6b35', litTick: 0 },
+    { x: W * 0.78, y: 175, r: 18, color: '#06d6a0', litTick: 0 },
+    { x: W * 0.50, y: 248, r: 18, color: '#9b5de5', litTick: 0 },
+  ];
+}
+
 // 마블 코스의 범퍼 배치를 생성한다.
 function generateBumpers(W) {
   marbleBumpers = [];
+
+  // ENTRY 상단 사이드 가이드 — 구슬을 안쪽으로 유도
+  marbleBumpers.push(
+    { x1: 5,     y1: 68, x2: W * 0.32, y2: 170, color: '#ff6b35' },
+    { x1: W - 5, y1: 68, x2: W * 0.68, y2: 170, color: '#06d6a0' },
+  );
 
   // Zone 2 SLALOM 좌우 교차 대각선 범퍼 4개
   marbleBumpers.push(
@@ -1436,6 +1452,7 @@ function generateBumpers(W) {
 
 // 현재 메뉴 목록을 바탕으로 마블 시뮬레이션 상태를 초기화한다.
 function rebuildMarbleCourseGeometry(trackWidth) {
+  generateSpringBumpers(trackWidth);
   generatePegs(trackWidth);
   generateBumpers(trackWidth);
 
@@ -1528,14 +1545,15 @@ function handleMarbleResize() {
 }
 
 function initMarble() {
-  marbleItems     = buildMarbleItems();
-  marbleExitOrder = [];
-  marbleRunning   = false;
-  marbleFinished  = false;
-  marbleBalls     = [];
-  marblePegs      = [];
-  marbleBumpers   = [];
-  marbleRotators  = [];
+  marbleItems          = buildMarbleItems();
+  marbleExitOrder      = [];
+  marbleRunning        = false;
+  marbleFinished       = false;
+  marbleBalls          = [];
+  marblePegs           = [];
+  marbleBumpers        = [];
+  marbleSpringBumpers  = [];
+  marbleRotators       = [];
   if (marbleAnimId) { cancelAnimationFrame(marbleAnimId); marbleAnimId = null; }
 
   const viewport = syncMarbleViewport();
@@ -1549,6 +1567,7 @@ function initMarble() {
   document.getElementById('marble-result').textContent    = '';
   document.getElementById('marble-start-btn').disabled    = false;
   document.getElementById('marble-start-btn').textContent = '출발!';
+  document.getElementById('marble-shuffle-btn').disabled  = false;
   document.getElementById('marble-skip-btn').disabled     = true;
   renderMarbleCountList();
   renderMarbleRanking();
@@ -1560,9 +1579,19 @@ function initMarble() {
   }
 
   const padding = MB_MARBLE_R * 4;
-  marbleItems.forEach((item, i) => {
+
+  // 균등 간격 x 위치를 생성한 뒤 Fisher-Yates 셔플로 무작위 배치
+  const spawnXs = marbleItems.map((_, i) => {
     const t = marbleItems.length > 1 ? i / (marbleItems.length - 1) : 0.5;
-    const x = padding + t * (mbTrackW - padding * 2) + (Math.random() - 0.5) * 6;
+    return padding + t * (mbTrackW - padding * 2);
+  });
+  for (let i = spawnXs.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [spawnXs[i], spawnXs[j]] = [spawnXs[j], spawnXs[i]];
+  }
+
+  marbleItems.forEach((item, i) => {
+    const x = spawnXs[i] + (Math.random() - 0.5) * 6;
     const y = 30 + Math.random() * 20;
     marbleBalls.push({
       menu      : item.menu,
@@ -1705,6 +1734,40 @@ function drawMarbleTrack(canvas) {
     ctx.fillText(names, 8, 14);
   }
 
+  // 스프링 범퍼
+  marbleSpringBumpers.forEach(sp => {
+    const lit = sp.litTick > 0;
+
+    // 외부 글로우
+    const glow = ctx.createRadialGradient(sp.x, sp.y, sp.r, sp.x, sp.y, sp.r * 2.6);
+    glow.addColorStop(0, lit ? sp.color + 'bb' : sp.color + '33');
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.beginPath(); ctx.arc(sp.x, sp.y, sp.r * 2.6, 0, Math.PI * 2);
+    ctx.fillStyle = glow; ctx.fill();
+
+    // 외부 링
+    ctx.beginPath(); ctx.arc(sp.x, sp.y, sp.r + 5, 0, Math.PI * 2);
+    ctx.strokeStyle = lit ? sp.color : sp.color + '55';
+    ctx.lineWidth = 2; ctx.stroke();
+
+    // 본체 그라디언트
+    const body = ctx.createRadialGradient(sp.x - sp.r * 0.35, sp.y - sp.r * 0.35, 2, sp.x, sp.y, sp.r);
+    body.addColorStop(0, lit ? '#ffffff' : '#707080');
+    body.addColorStop(0.45, lit ? sp.color : sp.color + 'cc');
+    body.addColorStop(1, lit ? shadeColor(sp.color, -50) : '#1a1a22');
+    ctx.beginPath(); ctx.arc(sp.x, sp.y, sp.r, 0, Math.PI * 2);
+    ctx.fillStyle = body; ctx.fill();
+
+    // 테두리 하이라이트
+    ctx.beginPath(); ctx.arc(sp.x, sp.y, sp.r, 0, Math.PI * 2);
+    ctx.strokeStyle = lit ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 1.5; ctx.stroke();
+
+    // 중심 점
+    ctx.beginPath(); ctx.arc(sp.x, sp.y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = lit ? '#fff' : 'rgba(255,255,255,0.3)'; ctx.fill();
+  });
+
   // 구슬
   marbleBalls.forEach(b => {
     if (b.exited) return;
@@ -1770,6 +1833,17 @@ function drawMinimap(minimap, wrap) {
   });
   mCtx.lineCap = 'butt';
 
+  // 스프링 범퍼 (미니맵)
+  marbleSpringBumpers.forEach(sp => {
+    mCtx.beginPath();
+    mCtx.arc(offX + sp.x * scaleX, offY + sp.y * scaleY, Math.max(3, sp.r * scaleX), 0, Math.PI * 2);
+    mCtx.fillStyle = sp.color + '55';
+    mCtx.strokeStyle = sp.color + 'cc';
+    mCtx.lineWidth = 1;
+    mCtx.fill();
+    mCtx.stroke();
+  });
+
   // 핀
   mCtx.fillStyle = '#3a3a4a';
   marblePegs.forEach(p => {
@@ -1811,6 +1885,9 @@ function physicsStep() {
   const exitY  = MB_TRACK_H - 60;
   const active = marbleBalls.filter(b => !b.exited);
   const lastRemaining = active.length === 1;
+
+  // 스프링 범퍼 발광 타이머 감소
+  marbleSpringBumpers.forEach(sp => { if (sp.litTick > 0) sp.litTick--; });
 
   // 회전 구조물 각도 업데이트
   marbleRotators.forEach(rot => { rot.angle += rot.speed; });
@@ -1892,6 +1969,18 @@ function physicsStep() {
         }
       });
 
+      marbleSpringBumpers.forEach(sp => {
+        const dx = b.x - sp.x, dy = b.y - sp.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const minD = b.r + sp.r;
+        if (dist < minD && dist > 0) {
+          contacts.push({
+            nx: dx / dist, ny: dy / dist,
+            depth: minD - dist, cx: sp.x, cy: sp.y, minD, type: 'spring', sp
+          });
+        }
+      });
+
       // 3. 끼임 감지: 서로 반대 방향으로 미는 접촉이 있는지 확인
       let wedged = false;
       outer: for (let i = 0; i < contacts.length; i++) {
@@ -1924,6 +2013,14 @@ function physicsStep() {
               b.vy -= (1 + MB_RESTITUTION) * relDot * c.ny;
               b.vx += tanX * 0.3;
               b.vy += tanY * 0.3;
+            }
+          } else if (c.type === 'spring') {
+            const dot = b.vx * c.nx + b.vy * c.ny;
+            if (dot < 0) {
+              // 스프링 범퍼: 법선 반전 + 추가 부스트
+              b.vx -= (1 + 1.9) * dot * c.nx;
+              b.vy -= (1 + 1.9) * dot * c.ny;
+              c.sp.litTick = 10;
             }
           } else {
             const dot = b.vx * c.nx + b.vy * c.ny;
@@ -2050,6 +2147,19 @@ function physicsStep() {
         }
       });
 
+      marbleSpringBumpers.forEach(sp => {
+        const dx = b.x - sp.x, dy = b.y - sp.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const minD = b.r + sp.r;
+        if (dist < minD && dist > 0) {
+          const nx = dx / dist, ny = dy / dist;
+          b.x = sp.x + nx * (minD + 0.2);
+          b.y = sp.y + ny * (minD + 0.2);
+          const vDot = b.vx * nx + b.vy * ny;
+          if (vDot < 0) { b.vx -= vDot * nx; b.vy -= vDot * ny; }
+        }
+      });
+
       if (b.x - b.r < 1)     b.x = 1 + b.r;
       if (b.x + b.r > W - 1) b.x = W - 1 - b.r;
     });
@@ -2125,14 +2235,42 @@ function finalizeMarbleWinner(winner) {
 }
 
 // 마블 시뮬레이션 애니메이션을 시작한다.
+function shuffleMarbleBalls() {
+  if (marbleRunning || marbleFinished) return;
+  if (!marbleBalls.length) return;
+
+  const padding = MB_MARBLE_R * 4;
+  const xs = marbleBalls.map(b => b.x);
+  for (let i = xs.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [xs[i], xs[j]] = [xs[j], xs[i]];
+  }
+  marbleBalls.forEach((b, i) => {
+    b.x  = xs[i] + (Math.random() - 0.5) * 6;
+    b.y  = 30 + Math.random() * 20;
+    b.vx = (Math.random() - 0.5) * 1.2;
+    b.vy = Math.random() * 0.5;
+    b._stuckTick = 0;
+    b._prevY     = b.y;
+  });
+
+  const canvas  = document.getElementById('marbleCanvas');
+  const minimap = document.getElementById('marbleMinimap');
+  const wrap    = document.getElementById('marble-track-wrap');
+  if (wrap) wrap.scrollTop = 0;
+  drawMarbleTrack(canvas);
+  drawMinimap(minimap, wrap);
+}
+
 function startMarble() {
   if (marbleFinished) { initMarble(); return; }
   if (marbleRunning) return;
   if (!marbleItems.length) { showToast('선택 가능한 메뉴가 없어요.', true); return; }
 
   marbleRunning = true;
-  document.getElementById('marble-start-btn').disabled = true;
-  document.getElementById('marble-skip-btn').disabled  = false;
+  document.getElementById('marble-start-btn').disabled   = true;
+  document.getElementById('marble-shuffle-btn').disabled = true;
+  document.getElementById('marble-skip-btn').disabled    = false;
 
   const canvas  = document.getElementById('marbleCanvas');
   const minimap = document.getElementById('marbleMinimap');

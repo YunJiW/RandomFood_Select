@@ -770,6 +770,14 @@ body {
 }
 #marble-start-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(255,107,53,0.45); }
 #marble-start-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+#marble-shuffle-btn {
+  padding: 10px 20px;
+  font-family: var(--font); font-size: 12px; font-weight: 600;
+  background: var(--surface2); border: 1px solid var(--accent2); border-radius: 50px;
+  color: var(--accent2); cursor: pointer; transition: all 0.15s;
+}
+#marble-shuffle-btn:hover:not(:disabled) { background: rgba(6,214,160,0.12); border-color: var(--accent2); }
+#marble-shuffle-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 #marble-skip-btn {
   padding: 10px 20px;
   font-family: var(--font); font-size: 12px; font-weight: 600;
