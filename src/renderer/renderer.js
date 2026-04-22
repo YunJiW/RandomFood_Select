@@ -1380,15 +1380,28 @@ function generatePegs(W) {
     }
   }
 
-  // Zone 3 MID 지그재그 (좌우 교차 통로)
+  // SLALOM 범퍼 사이 핀 3줄 (r=7, 구슬 분산 강화)
+  [
+    { y: 916,  shift: false },
+    { y: 1094, shift: true  },
+    { y: 1274, shift: false },
+  ].forEach(({ y, shift }) => {
+    const cols = 5;
+    const step = uW / cols;
+    const ox = shift ? m + step * 0.5 : m;
+    for (let col = 0; col < cols; col++) {
+      marblePegs.push({ x: ox + col * step, y, r: MB_PEG_R + 2 });
+    }
+  });
+
+  // Zone 3 MID 지그재그 (좌우 교차 통로 — 구멍 축소)
   const MID_Y0   = 1500;
   const MID_ROWS = 7;
   const MID_DY   = 130;
-  const PASS_W   = W * 0.25; // 통과 구멍 폭
+  const PASS_W   = W * 0.18; // 통과 구멍 폭 (기존 0.25 → 0.18)
 
   for (let row = 0; row < MID_ROWS; row++) {
     const y = MID_Y0 + row * MID_DY;
-    // 짝수 줄은 오른쪽에 구멍 / 홀수 줄은 왼쪽에 구멍
     const passOnRight = row % 2 === 0;
     const passX0 = passOnRight ? W - m - PASS_W : m;
     const passX1 = passOnRight ? W - m           : m + PASS_W;
@@ -1399,6 +1412,14 @@ function generatePegs(W) {
       marblePegs.push({ x, y, r: MB_PEG_R });
     }
   }
+
+  // MID 구간 대형 핀 (r=11) — 회전 장애물 사이 공간에 배치
+  [
+    { x: W * 0.50, y: 1680 },
+    { x: W * 0.25, y: 1970 },
+    { x: W * 0.75, y: 1970 },
+    { x: W * 0.50, y: 2240 },
+  ].forEach(p => marblePegs.push({ ...p, r: 11 }));
 
   // Zone 5 EXIT 핀 배치 7줄
   for (let row = 0; row < 7; row++) {
@@ -1441,6 +1462,23 @@ function generateBumpers(W) {
     { x1: W - 1, y1: 1302, x2: W * 0.54, y2: 1422, color: '#9b5de5' },
   );
 
+  // SLALOM 중앙 교차 범퍼 — 중간에서 좌우를 가로막아 경로 복잡화
+  marbleBumpers.push(
+    { x1: W * 0.12, y1: 996,  x2: W * 0.48, y2: 1036, color: '#c77dff' },
+    { x1: W * 0.88, y1: 996,  x2: W * 0.52, y2: 1036, color: '#c77dff' },
+  );
+
+  // EXIT 구간 V자 경로 분기 범퍼 2세트
+  [
+    { cy: 2608, half: W * 0.16 },
+    { cy: 2764, half: W * 0.16 },
+  ].forEach(({ cy, half }) => {
+    marbleBumpers.push(
+      { x1: W * 0.5 - half - W * 0.14, y1: cy,      x2: W * 0.5 - half, y2: cy + 50, color: '#ffd166' },
+      { x1: W * 0.5 + half + W * 0.14, y1: cy,      x2: W * 0.5 + half, y2: cy + 50, color: '#ffd166' },
+    );
+  });
+
   // Zone 6 NARROW 최하단 좁은 통로
   const nY1 = 3010, nY2 = 3138;
   const nHalf = 55;
@@ -1456,16 +1494,36 @@ function rebuildMarbleCourseGeometry(trackWidth) {
   generatePegs(trackWidth);
   generateBumpers(trackWidth);
 
-  const prevRotator = marbleRotators[0];
+  const prevRotators = marbleRotators.slice();
   marbleRotators = [
     {
       cx: trackWidth / 2 - 55,
       cy: 3138,
       armLen: 88,
-      angle: prevRotator?.angle ?? 0,
+      angle: prevRotators[0]?.angle ?? 0,
       speed: -0.022,
       armR: 6,
       arms: 2,
+    },
+    // MID 좌측 3-팔 회전 장애물
+    {
+      cx: trackWidth * 0.30,
+      cy: 1825,
+      armLen: 50,
+      angle: prevRotators[1]?.angle ?? (Math.PI / 4),
+      speed: 0.030,
+      armR: 5,
+      arms: 3,
+    },
+    // MID 우측 3-팔 회전 장애물
+    {
+      cx: trackWidth * 0.70,
+      cy: 2215,
+      armLen: 50,
+      angle: prevRotators[2]?.angle ?? (Math.PI * 5 / 4),
+      speed: -0.026,
+      armR: 5,
+      arms: 3,
     },
   ];
 
