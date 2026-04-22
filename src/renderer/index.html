@@ -28,6 +28,8 @@
       <div class="tab" data-tab="marble">마블 룰렛</div>
     </div>
 
+    <div id="left-body">
+      <div id="tab-panels">
     <div class="tab-content active" id="pick-tab">
       <div id="pick-main">
         <div class="pick-title">오늘 뭐 먹지?</div>
@@ -101,6 +103,9 @@
           <button id="wheel-skip-btn" class="wheel-secondary-btn" onclick="skipWheel()" disabled>바로 결과보기</button>
         </div>
         <div id="wheel-result" class="wheel-result-box"></div>
+        <div class="wheel-controls">
+          <button id="wheel-map-btn" class="wheel-secondary-btn" onclick="openWheelPickedMenuMap()" disabled>근처 가게 찾기</button>
+        </div>
       </div>
       <div id="wheel-right">
         <div class="weight-header">
@@ -116,6 +121,8 @@
           <button class="btn-add" onclick="addMenuFromWheel()">+</button>
         </div>
         <div id="weight-list"></div>
+      </div>
+    </div>
       </div>
     </div>
   </div>
@@ -164,7 +171,7 @@
 <div id="map-test-panel" class="map-test-panel">
   <div class="map-test-header">
     <div>
-      <div class="map-test-title">Kakao Map Test</div>
+      <div class="map-test-title">근처 가게 찾기</div>
       <div id="map-status" class="map-status">버튼을 누르면 현재 위치 기반 지도를 불러옵니다.</div>
     </div>
     <button class="map-close-btn" onclick="hideMapPanel()">닫기</button>

@@ -28,6 +28,8 @@ let mapConsentResolver = null;
 let activeSidePanel = null;
 let activeMainTab = 'pick';
 let latestPickedMenuName = '';
+let latestWheelPickedMenuName = '';
+let mapPanelRequestToken = 0;
 
 // 탭 전환
 document.querySelectorAll('.tab').forEach(tab => {
@@ -73,6 +75,14 @@ function triggerActiveTabAction() {
 
 document.addEventListener('keydown', e => {
   if (e.repeat) return;
+  if (e.key === 'Escape') {
+    const mapPanel = document.getElementById('map-test-panel');
+    if (mapPanel?.classList.contains('show')) {
+      e.preventDefault();
+      hideMapPanel();
+    }
+    return;
+  }
   if (e.key !== 'Enter' && e.code !== 'Space') return;
   if (isTypingTarget(e.target)) return;
 
@@ -526,19 +536,41 @@ function setMapStatus(message, isError = false) {
 }
 
 // 지도 패널을 연다.
+function mountMapPanelIntoLeftBody() {
+  const leftBody = document.getElementById('left-body');
+  const panel = document.getElementById('map-test-panel');
+  if (!leftBody || !panel || panel.parentElement === leftBody) return;
+  leftBody.appendChild(panel);
+}
+
 function showMapPanel() {
+  mountMapPanelIntoLeftBody();
   document.getElementById('map-test-panel').classList.add('show');
+  mapPanelRequestToken += 1;
+  return mapPanelRequestToken;
 }
 
 // 지도 패널을 닫는다.
 function hideMapPanel() {
   document.getElementById('map-test-panel').classList.remove('show');
+  mapPanelRequestToken += 1;
+}
+
+function isMapPanelRequestActive(token) {
+  const panel = document.getElementById('map-test-panel');
+  return token === mapPanelRequestToken && panel?.classList.contains('show');
 }
 
 function syncPickedMenuMapButton() {
   const btn = document.getElementById('pick-map-btn');
   if (!btn) return;
   btn.disabled = !latestPickedMenuName;
+}
+
+function syncWheelPickedMenuMapButton() {
+  const btn = document.getElementById('wheel-map-btn');
+  if (!btn) return;
+  btn.disabled = !latestWheelPickedMenuName;
 }
 
 async function showPickedMenuMap(menuName, sourceLabel = '메뉴 추천') {
@@ -569,6 +601,14 @@ async function openPickedMenuMap() {
     return;
   }
   await showPickedMenuMap(latestPickedMenuName, '랜덤 뽑기');
+}
+
+async function openWheelPickedMenuMap() {
+  if (!latestWheelPickedMenuName) {
+    showToast('먼저 돌림판 결과를 확인해주세요.', true);
+    return;
+  }
+  await showPickedMenuMap(latestWheelPickedMenuName, '돌림판');
 }
 
 function hasLocationConsent() {
@@ -916,7 +956,7 @@ function loadKakaoMapSdk(appKey) {
 }
 
 async function testCurrentLocationMap(options = {}) {
-  showMapPanel();
+  const requestToken = options.preservePanelToken ?? showMapPanel();
   const appKey = (kakaoMapConfig?.jsKey || '').trim();
 
   if (!appKey) {
@@ -926,6 +966,7 @@ async function testCurrentLocationMap(options = {}) {
   }
 
   await ensureLocationConsentResolved();
+  if (!isMapPanelRequestActive(requestToken)) return;
 
   try {
     setMapStatus(
@@ -937,6 +978,7 @@ async function testCurrentLocationMap(options = {}) {
       loadKakaoMapSdk(appKey),
       getBestAvailablePosition(),
     ]);
+    if (!isMapPanelRequestActive(requestToken)) return;
 
     const lat = position.coords.latitude;
     const lng = position.coords.longitude;
@@ -1003,9 +1045,11 @@ async function testCurrentLocationMap(options = {}) {
         keyword: keywordInput?.value.trim() || '음식점',
         silentOnMapInit: true,
         baseStatusMessage: loadedMessage,
+        preservePanelToken: requestToken,
       });
     }
   } catch (error) {
+    if (!isMapPanelRequestActive(requestToken)) return;
     setMapStatus(error.message || '현재 위치 지도를 불러오지 못했습니다.', true);
     showToast(error.message || '현재 위치 지도를 불러오지 못했습니다.', true);
   }
@@ -1013,7 +1057,7 @@ async function testCurrentLocationMap(options = {}) {
 
 // 현재 지도 중심을 기준으로 장소 검색을 수행한다.
 async function searchPlacesOnMap(options = {}) {
-  showMapPanel();
+  const requestToken = options.preservePanelToken ?? showMapPanel();
   const keywordInput = document.getElementById('map-search-keyword');
   const keyword = (options.keyword ?? keywordInput?.value ?? '').trim();
 
@@ -1025,9 +1069,10 @@ async function searchPlacesOnMap(options = {}) {
 
   try {
     if (!kakaoMapInstance) {
-      await testCurrentLocationMap({ skipAutoSearch: true });
+      await testCurrentLocationMap({ skipAutoSearch: true, preservePanelToken: requestToken });
       if (!kakaoMapInstance) return;
     }
+    if (!isMapPanelRequestActive(requestToken)) return;
 
     const center = kakaoMapInstance.getCenter();
     setMapStatus(`"${keyword}" 검색 중입니다...`);
@@ -1040,6 +1085,7 @@ async function searchPlacesOnMap(options = {}) {
       radius: 3000,
       size: 10,
     });
+    if (!isMapPanelRequestActive(requestToken)) return;
 
     if (!result?.success) {
       throw new Error(result?.error || '장소 검색에 실패했습니다.');
@@ -1082,6 +1128,7 @@ async function searchPlacesOnMap(options = {}) {
       showToast(`"${keyword}" 검색 결과를 표시했습니다.`);
     }
   } catch (error) {
+    if (!isMapPanelRequestActive(requestToken)) return;
     setMapStatus(error.message || '장소 검색에 실패했습니다.', true);
     showToast(error.message || '장소 검색에 실패했습니다.', true);
   }
@@ -1165,6 +1212,8 @@ function finalizeWheelResult() {
   if (btn) btn.disabled = false;
   if (skipBtn) skipBtn.disabled = true;
   if (resultBox) resultBox.textContent = `당첨 ${pickedName}!`;
+  latestWheelPickedMenuName = pickedName;
+  syncWheelPickedMenuMapButton();
   window.api.recordPick(pickedName).then(() => loadHistory());
 }
 
