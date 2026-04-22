@@ -156,7 +156,7 @@ function syncRightPanel() {
 
 window.addEventListener('resize', () => {
   syncRightPanel();
-  if (activeMainTab === 'marble') setTimeout(() => initMarble(), 0);
+  handleMarbleResize();
 });
 
 // 데이터 로드
@@ -1221,6 +1221,7 @@ let marbleFinished  = false;
 let marbleAnimId    = null;
 let marbleExitOrder = [];
 let mbTrackW        = 360;
+let marbleResizeTimer = null;
 const MB_LAST_STRETCH_Y = 3040;
 const MB_LAST_ONE_WIN_Y = 3000;
 
@@ -1317,6 +1318,98 @@ function generateBumpers(W) {
 }
 
 // 현재 메뉴 목록을 바탕으로 마블 시뮬레이션 상태를 초기화한다.
+function rebuildMarbleCourseGeometry(trackWidth) {
+  generatePegs(trackWidth);
+  generateBumpers(trackWidth);
+
+  const prevRotator = marbleRotators[0];
+  marbleRotators = [
+    {
+      cx: trackWidth / 2 - 55,
+      cy: 3138,
+      armLen: 88,
+      angle: prevRotator?.angle ?? 0,
+      speed: -0.022,
+      armR: 6,
+      arms: 2,
+    },
+  ];
+
+  const narrowY1 = 3010;
+  const narrowY2 = 3138;
+  const narrowHalf = 55;
+  [
+    [1, narrowY1, trackWidth / 2 - narrowHalf, narrowY2],
+    [trackWidth - 1, narrowY1, trackWidth / 2 + narrowHalf, narrowY2],
+  ].forEach(([x1, y1, x2, y2]) => {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const len = Math.hypot(dx, dy);
+    const step = (MB_MARBLE_R + MB_BUMPER_R) * 1.4;
+    for (let d = step * 0.5; d < len; d += step) {
+      const t = d / len;
+      marblePegs.push({ x: x1 + t * dx, y: y1 + t * dy, r: MB_BUMPER_R + 1, hidden: true });
+    }
+  });
+
+  marblePegs.push({ x: trackWidth / 2 - narrowHalf, y: narrowY2, r: MB_BUMPER_R + 3 });
+  marblePegs.push({ x: trackWidth / 2 + narrowHalf, y: narrowY2, r: MB_BUMPER_R + 3 });
+}
+
+function syncMarbleViewport({ preserveState = false } = {}) {
+  const canvas  = document.getElementById('marbleCanvas');
+  const minimap = document.getElementById('marbleMinimap');
+  const wrap    = document.getElementById('marble-track-wrap');
+  const layout  = document.getElementById('marble-layout');
+  if (!canvas || !wrap || !minimap) return null;
+
+  const prevTrackW = mbTrackW;
+  const prevScrollTop = wrap.scrollTop;
+  const nextTrackW = Math.max(wrap.clientWidth - 2, 280);
+  const nextMinimapH = layout ? Math.max(layout.clientHeight - 2, 200) : 400;
+
+  mbTrackW = nextTrackW;
+  canvas.width = nextTrackW;
+  canvas.height = MB_TRACK_H;
+  minimap.width = MINIMAP_W;
+  minimap.height = nextMinimapH;
+
+  if (preserveState && prevTrackW > 0 && prevTrackW !== nextTrackW) {
+    const scaleX = nextTrackW / prevTrackW;
+    marbleBalls.forEach(ball => {
+      ball.x *= scaleX;
+      ball.vx *= scaleX;
+    });
+  }
+
+  rebuildMarbleCourseGeometry(nextTrackW);
+
+  if (preserveState) {
+    wrap.scrollTop = Math.min(prevScrollTop, Math.max(0, wrap.scrollHeight - wrap.clientHeight));
+    drawMarbleTrack(canvas);
+    drawMinimap(minimap, wrap);
+    renderMarbleRanking(marbleFinished ? marbleExitOrder[marbleExitOrder.length - 1] : null);
+  } else {
+    wrap.scrollTop = 0;
+  }
+
+  return { canvas, minimap, wrap };
+}
+
+function handleMarbleResize() {
+  if (activeMainTab !== 'marble') return;
+  if (marbleResizeTimer) clearTimeout(marbleResizeTimer);
+  marbleResizeTimer = setTimeout(() => {
+    marbleResizeTimer = null;
+    if (activeMainTab !== 'marble') return;
+    if (marbleRunning || marbleFinished || marbleBalls.length) {
+      syncMarbleViewport({ preserveState: true });
+      return;
+    }
+    initMarble();
+  }, 80);
+}
+
 function initMarble() {
   marbleItems     = buildMarbleItems();
   marbleExitOrder = [];
@@ -1328,48 +1421,14 @@ function initMarble() {
   marbleRotators  = [];
   if (marbleAnimId) { cancelAnimationFrame(marbleAnimId); marbleAnimId = null; }
 
-  const canvas  = document.getElementById('marbleCanvas');
-  const minimap = document.getElementById('marbleMinimap');
-  const wrap    = document.getElementById('marble-track-wrap');
-  const layout  = document.getElementById('marble-layout');
-  if (!canvas || !wrap) return;
+  const viewport = syncMarbleViewport();
+  if (!viewport) return;
+  const { canvas, minimap, wrap } = viewport;
 
-  mbTrackW      = Math.max(wrap.clientWidth - 2, 280);
-  canvas.width  = mbTrackW;
-  canvas.height = MB_TRACK_H;
-
-  const mmH = layout ? Math.max(layout.clientHeight - 2, 200) : 400;
-  minimap.width  = MINIMAP_W;
-  minimap.height = mmH;
-
-  wrap.scrollTop = 0;
-
-  generatePegs(mbTrackW);
-  generateBumpers(mbTrackW);
 
   // 회전 구조물은 NARROW 범퍼 끝점 쪽에 고정
-  marbleRotators = [
-    { cx: mbTrackW / 2 - 55, cy: 3138, armLen: 88, angle: 0, speed: -0.022, armR: 6, arms: 2 },
-  ];
-
   // NARROW 범퍼 선분을 따라 보이지 않는 peg를 추가해 관통을 방지
-  const _nY1 = 3010, _nY2 = 3138, _nHalf = 55;
-  [
-    [1,             _nY1, mbTrackW / 2 - _nHalf, _nY2],
-    [mbTrackW - 1,  _nY1, mbTrackW / 2 + _nHalf, _nY2],
-  ].forEach(([x1, y1, x2, y2]) => {
-    const dx = x2 - x1, dy = y2 - y1;
-    const len = Math.hypot(dx, dy);
-    const step = (MB_MARBLE_R + MB_BUMPER_R) * 1.4;
-    for (let d = step * 0.5; d < len; d += step) {
-      const t = d / len;
-      marblePegs.push({ x: x1 + t * dx, y: y1 + t * dy, r: MB_BUMPER_R + 1, hidden: true });
-    }
-  });
   // NARROW 범퍼 하단 끝점 + 보강용 peg
-  marblePegs.push({ x: mbTrackW / 2 - _nHalf, y: _nY2, r: MB_BUMPER_R + 3 });
-  marblePegs.push({ x: mbTrackW / 2 + _nHalf, y: _nY2, r: MB_BUMPER_R + 3 });
-
   document.getElementById('marble-result').textContent    = '';
   document.getElementById('marble-start-btn').disabled    = false;
   document.getElementById('marble-start-btn').textContent = '출발!';
