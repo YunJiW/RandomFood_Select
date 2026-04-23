@@ -161,6 +161,21 @@
           <h3>구슬 수량 설정</h3>
           <button class="btn-reset-weights" onclick="resetMarbleCounts()">초기화</button>
         </div>
+        <div class="marble-rule-panel">
+          <div class="marble-rule-title">우승 기준</div>
+          <div class="marble-rule-row">
+            <select id="marble-win-mode">
+              <option value="last-survivor">마지막까지 남은 구슬 우승</option>
+              <option value="nth-exit">n번째 들어간 구슬 우승</option>
+            </select>
+          </div>
+          <div class="marble-rule-row marble-rule-rank-row" id="marble-win-rank-row">
+            <span class="marble-rule-label">우승 순서</span>
+            <input type="number" id="marble-win-rank" min="1" value="1" />
+            <span class="marble-rule-suffix">번째</span>
+          </div>
+          <div id="marble-win-rule-summary" class="marble-rule-summary"></div>
+        </div>
         <div class="wheel-add-bar marble-add-bar">
           <input type="text" id="marble-new-name" placeholder="메뉴 추가" />
           <select id="marble-new-category">

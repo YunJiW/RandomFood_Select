@@ -58,6 +58,8 @@ document.getElementById('wheel-new-name').addEventListener('keydown', e => { if 
 document.getElementById('marble-new-name').addEventListener('keydown', e => { if (e.key === 'Enter') addMenuFromMarble(); });
 document.getElementById('map-search-keyword').addEventListener('keydown', e => { if (e.key === 'Enter') searchPlacesOnMap(); });
 document.getElementById('map-search-address').addEventListener('click', () => openAddressSearchPopup());
+document.getElementById('marble-win-mode')?.addEventListener('change', () => updateMarbleWinRule());
+document.getElementById('marble-win-rank')?.addEventListener('input', () => updateMarbleWinRule());
 
 function isTypingTarget(target) {
   if (!target) return false;
@@ -640,10 +642,14 @@ async function openWheelPickedMenuMap() {
 function syncMarblePickedMenuMapButton() {
   const btn = document.getElementById('marble-map-btn');
   if (!btn) return;
-  btn.disabled = !latestMarblePickedMenuName;
+  btn.disabled = marbleRunning || !latestMarblePickedMenuName;
 }
 
 async function openMarblePickedMenuMap() {
+  if (marbleRunning) {
+    showToast('마블 룰렛이 진행 중일 때는 근처 가게를 열 수 없어요.', true);
+    return;
+  }
   if (!latestMarblePickedMenuName) {
     showToast('먼저 마블 룰렛 결과를 확인해주세요.', true);
     return;
@@ -1480,6 +1486,9 @@ let marbleRunning        = false;
 let marbleFinished  = false;
 let marbleAnimId    = null;
 let marbleExitOrder = [];
+let marbleWinnerBall = null;
+let marbleWinMode = 'last-survivor';
+let marbleWinRank = 1;
 let mbTrackW        = 360;
 let marbleResizeTimer = null;
 const MB_LAST_STRETCH_Y = 3040;
@@ -1722,7 +1731,7 @@ function syncMarbleViewport({ preserveState = false } = {}) {
     wrap.scrollTop = Math.min(prevScrollTop, Math.max(0, wrap.scrollHeight - wrap.clientHeight));
     drawMarbleTrack(canvas);
     drawMinimap(minimap, wrap);
-    renderMarbleRanking(marbleFinished ? marbleExitOrder[marbleExitOrder.length - 1] : null);
+    renderMarbleRanking(marbleFinished ? marbleWinnerBall : null);
   } else {
     wrap.scrollTop = 0;
   }
@@ -1744,11 +1753,67 @@ function handleMarbleResize() {
   }, 80);
 }
 
+function getMarbleWinRankLimit() {
+  return Math.max(1, marbleItems.length || buildMarbleItems().length || 1);
+}
+
+function syncMarbleWinRuleUI() {
+  const modeSelect = document.getElementById('marble-win-mode');
+  const rankInput = document.getElementById('marble-win-rank');
+  const rankRow = document.getElementById('marble-win-rank-row');
+  const summary = document.getElementById('marble-win-rule-summary');
+  if (!modeSelect || !rankInput || !rankRow || !summary) return;
+
+  const rankLimit = getMarbleWinRankLimit();
+  marbleWinRank = Math.min(Math.max(1, marbleWinRank || 1), rankLimit);
+
+  modeSelect.value = marbleWinMode;
+  rankInput.min = '1';
+  rankInput.max = String(rankLimit);
+  rankInput.value = String(marbleWinRank);
+  rankRow.classList.toggle('hidden', marbleWinMode !== 'nth-exit');
+  summary.textContent =
+    marbleWinMode === 'nth-exit'
+      ? `현재는 ${marbleWinRank}번째로 결승 구간에 들어간 구슬이 우승합니다. 전체 후보는 ${rankLimit}개예요.`
+      : '현재는 마지막까지 남아 가장 늦게 결승에 도달한 구슬이 우승합니다.';
+}
+
+function setMarbleWinRuleControlsDisabled(disabled) {
+  document.getElementById('marble-win-mode')?.toggleAttribute('disabled', disabled);
+  document.getElementById('marble-win-rank')?.toggleAttribute('disabled', disabled);
+}
+
+function updateMarbleWinRule() {
+  const modeSelect = document.getElementById('marble-win-mode');
+  const rankInput = document.getElementById('marble-win-rank');
+  if (!modeSelect || !rankInput) return;
+
+  marbleWinMode = modeSelect.value === 'nth-exit' ? 'nth-exit' : 'last-survivor';
+  marbleWinRank = Math.max(1, parseInt(rankInput.value, 10) || 1);
+  syncMarbleWinRuleUI();
+
+  if (marbleRunning) return;
+  if (activeMainTab === 'marble') initMarble();
+}
+
+function getMarbleWinnerByRule() {
+  if (marbleWinMode === 'nth-exit') {
+    const targetIndex = Math.min(Math.max(1, marbleWinRank), getMarbleWinRankLimit()) - 1;
+    return marbleExitOrder[targetIndex] || null;
+  }
+
+  const remaining = marbleBalls.filter(b => !b.exited);
+  if (remaining.length === 1) return remaining[0];
+  if (remaining.length === 0) return marbleExitOrder[marbleExitOrder.length - 1] || null;
+  return null;
+}
+
 function initMarble() {
   marbleItems          = buildMarbleItems();
   marbleExitOrder      = [];
   marbleRunning        = false;
   marbleFinished       = false;
+  marbleWinnerBall     = null;
   marbleBalls          = [];
   marblePegs           = [];
   marbleBumpers        = [];
@@ -1769,6 +1834,9 @@ function initMarble() {
   document.getElementById('marble-start-btn').textContent = '출발!';
   document.getElementById('marble-shuffle-btn').disabled  = false;
   document.getElementById('marble-skip-btn').disabled     = true;
+  setMarbleWinRuleControlsDisabled(false);
+  syncMarblePickedMenuMapButton();
+  syncMarbleWinRuleUI();
   renderMarbleCountList();
   renderMarbleRanking();
 
@@ -1927,8 +1995,8 @@ function drawMarbleTrack(canvas) {
     ctx.fillStyle = '#555';
     ctx.font      = '10px Pretendard, sans-serif';
     ctx.textAlign = 'left';
-    const names = marbleExitOrder.map((b, idx) =>
-      idx === marbleExitOrder.length - 1 && marbleFinished
+    const names = marbleExitOrder.slice().reverse().map((b, idx) =>
+      marbleFinished && marbleWinnerBall === b
         ? '[우승] ' + b.label : b.label
     ).join(' > ');
     ctx.fillText(names, 8, 14);
@@ -2380,16 +2448,12 @@ function getMarbleRankingList(finalWinner = null) {
   const active = marbleBalls
     .filter(b => !b.exited)
     .slice()
-    .sort((a, b) => b.y - a.y);
+    .sort((a, b) => a.y - b.y);
 
   const exited = marbleExitOrder
     .slice()
     .reverse()
-    .filter(b => !finalWinner || b !== finalWinner);
-
-  if (finalWinner) {
-    return [finalWinner, ...exited];
-  }
+    .filter(Boolean);
 
   return [...active, ...exited];
 }
@@ -2406,10 +2470,10 @@ function renderMarbleRanking(finalWinner = null) {
 
   rankingEl.innerHTML = `
     <div class="marble-ranking-list">
-      ${ranking.slice(0, 5).map((ball, index) => `
-        <div class="marble-ranking-item">
+      ${ranking.map((ball, index) => `
+        <div class="marble-ranking-item ${finalWinner === ball ? 'winner' : ''}">
           <span class="marble-ranking-name">${escapeHtml(ball.label || ball.menu.name)}</span>
-          <span class="marble-ranking-state">${finalWinner ? (index === 0 ? '우승' : '종료') : (ball.exited ? '탈락' : '진행중')}</span>
+          <span class="marble-ranking-state ${ball.exited ? 'passed' : ''}">${ball.exited ? '✓' : ''}</span>
         </div>
       `).join('')}
     </div>
@@ -2421,15 +2485,18 @@ function finalizeMarbleWinner(winner) {
 
   marbleRunning  = false;
   marbleFinished = true;
+  marbleWinnerBall = winner;
   if (marbleAnimId) {
     cancelAnimationFrame(marbleAnimId);
     marbleAnimId = null;
   }
 
-  document.getElementById('marble-result').textContent    = winner.menu.name + ' 우승!';
+  document.getElementById('marble-result').textContent    = `${winner.menu.name} 우승!`;
   document.getElementById('marble-start-btn').disabled    = false;
   document.getElementById('marble-start-btn').textContent = '다시 하기';
   document.getElementById('marble-skip-btn').disabled     = true;
+  document.getElementById('marble-shuffle-btn').disabled  = false;
+  setMarbleWinRuleControlsDisabled(false);
   renderMarbleRanking(winner);
   latestMarblePickedMenuName = winner.menu.name;
   syncMarblePickedMenuMapButton();
@@ -2473,6 +2540,8 @@ function startMarble() {
   document.getElementById('marble-start-btn').disabled   = true;
   document.getElementById('marble-shuffle-btn').disabled = true;
   document.getElementById('marble-skip-btn').disabled    = false;
+  setMarbleWinRuleControlsDisabled(true);
+  syncMarblePickedMenuMapButton();
 
   const canvas  = document.getElementById('marbleCanvas');
   const minimap = document.getElementById('marbleMinimap');
@@ -2485,14 +2554,9 @@ function startMarble() {
     drawMinimap(minimap, wrap);
     renderMarbleRanking();
 
-    const remaining = marbleBalls.filter(b => !b.exited);
-    if (remaining.length === 1) {
-      finalizeMarbleWinner(remaining[0]);
-      return;
-    }
-
-    if (remaining.length === 0) {
-      finalizeMarbleWinner(marbleExitOrder[marbleExitOrder.length - 1]);
+    const winner = getMarbleWinnerByRule();
+    if (winner) {
+      finalizeMarbleWinner(winner);
       return;
     }
     marbleAnimId = requestAnimationFrame(frame);
@@ -2519,7 +2583,7 @@ function skipMarble() {
   drawMinimap(minimap, wrap);
   renderMarbleRanking();
 
-  finalizeMarbleWinner(marbleExitOrder[marbleExitOrder.length - 1]);
+  finalizeMarbleWinner(getMarbleWinnerByRule());
 }
 
 // 초기화

@@ -721,6 +721,57 @@ body {
 .marble-add-bar {
   border-bottom: 1px solid var(--border);
 }
+.marble-rule-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.marble-rule-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text);
+}
+.marble-rule-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.marble-rule-row select,
+.marble-rule-row input {
+  width: 100%;
+  padding: 6px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 11px;
+  font-family: var(--font);
+  outline: none;
+}
+.marble-rule-row select:focus,
+.marble-rule-row input:focus {
+  border-color: var(--accent);
+}
+.marble-rule-rank-row.hidden {
+  display: none;
+}
+.marble-rule-label,
+.marble-rule-suffix {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+.marble-rule-rank-row input {
+  width: 56px;
+  text-align: center;
+}
+.marble-rule-summary {
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--muted);
+}
 #marble-count-list::-webkit-scrollbar { width: 3px; }
 #marble-count-list::-webkit-scrollbar-track { background: transparent; }
 #marble-count-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
@@ -817,7 +868,6 @@ body {
   top: 10px;
   right: 10px;
   width: min(190px, calc(100% - 20px));
-  max-height: 160px;
   padding: 10px 12px;
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 12px;
@@ -842,7 +892,6 @@ body {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  overflow-y: auto;
 }
 .marble-ranking-item {
   display: flex;
@@ -852,6 +901,9 @@ body {
   font-size: 12px;
   color: var(--text);
   text-shadow: 0 1px 2px rgba(0,0,0,0.7);
+}
+.marble-ranking-item.winner .marble-ranking-name {
+  color: var(--accent2);
 }
 .marble-ranking-name {
   flex: 1;
@@ -863,9 +915,15 @@ body {
 }
 .marble-ranking-state {
   flex-shrink: 0;
-  font-size: 10px;
-  color: rgba(238,238,240,0.82);
+  min-width: 18px;
+  text-align: center;
+  font-size: 13px;
+  color: rgba(238,238,240,0.25);
   text-shadow: 0 1px 2px rgba(0,0,0,0.7);
+}
+.marble-ranking-state.passed {
+  color: var(--success);
+  font-weight: 800;
 }
 
 @media (max-width: 860px) {
