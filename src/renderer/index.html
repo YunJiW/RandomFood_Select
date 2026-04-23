@@ -132,7 +132,7 @@
         <span class="ptab" data-panel="history" onclick="showPanel('history')">최근 기록</span>
         <span class="ptab" data-panel="stats" onclick="showPanel('stats')">통계</span>
         <span class="ptab wheel-only-tab" data-panel="weights" onclick="showPanel('weights')">가중치</span>
-        <button class="ptab side-action-btn" onclick="testCurrentLocationMap()">지도 테스트</button>
+        <button class="ptab side-action-btn" onclick="testCurrentLocationMap()">지도</button>
       </div>
       <button class="btn-clear hidden" onclick="clearHistory()">전체 삭제</button>
     </div>
@@ -200,14 +200,6 @@
     </div>
     <button class="map-close-btn" onclick="hideMapPanel()">닫기</button>
   </div>
-  <div class="map-key-row">
-    <div class="map-key-note">지도 SDK 키는 앱 설정에서 자동으로 불러옵니다.</div>
-    <button class="btn-add" onclick="testCurrentLocationMap()">지도 불러오기</button>
-  </div>
-  <label class="map-permission-toggle">
-    <input type="checkbox" id="map-location-consent" />
-    <span>현재 위치 사용 허용</span>
-  </label>
   <div class="map-search-row">
     <input type="text" id="map-search-address" placeholder="주소 검색 팝업에서 선택한 주소가 표시됩니다." readonly />
     <button class="btn-add" onclick="openAddressSearchPopup()">주소 찾기</button>
@@ -221,11 +213,11 @@
   <div id="map-search-results" class="map-search-results"></div>
 </div>
 
-<!-- 현재 위치 사용 여부를 처음 확인하는 모달 -->
+<!-- 위치 기반 데이터 사용 여부를 처음 확인하는 모달 -->
 <div id="map-consent-modal" class="map-consent-modal">
   <div class="map-consent-dialog">
-    <div class="map-consent-title">현재 위치 사용</div>
-    <div class="map-consent-text">가까운 가게를 더 정확하게 찾기 위해 현재 위치를 사용할까요?</div>
+    <div class="map-consent-title">위치 기반 데이터 사용</div>
+    <div class="map-consent-text">가까운 가게를 더 정확하게 찾기 위해 위치 기반 데이터를 사용할까요?</div>
     <div class="map-consent-subtext">거부하면 IP 기반 대략 위치로 지도를 불러옵니다.</div>
     <div class="map-consent-actions">
       <button class="btn-cancel" onclick="resolveMapConsent(false)">거부</button>

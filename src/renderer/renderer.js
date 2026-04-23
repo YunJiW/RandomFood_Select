@@ -26,7 +26,7 @@ let kakaoPlaceMarkers = [];
 let kakaoPlaceInfoWindow = null;
 let kakaoGeocoder = null;
 // 위치 사용 동의 상태는 localStorage에 저장해 재사용한다.
-const MAP_LOCATION_CONSENT_KEY = 'map-location-consent';
+const MAP_LOCATION_CONSENT_KEY = 'map-location-consent-v2';
 let mapConsentResolver = null;
 let activeSidePanel = null;
 let activeMainTab = 'pick';
@@ -620,7 +620,7 @@ async function showPickedMenuMap(menuName, sourceLabel = '메뉴 추천') {
   }
 }
 
-// 사용자가 체크박스로 현재 위치 사용을 허용했는지 확인한다.
+// 저장된 위치 사용 허용 여부를 확인한다.
 async function openPickedMenuMap() {
   if (!latestPickedMenuName) {
     showToast('먼저 메뉴를 뽑아주세요.', true);
@@ -652,7 +652,7 @@ async function openMarblePickedMenuMap() {
 }
 
 function hasLocationConsent() {
-  return document.getElementById('map-location-consent')?.checked === true;
+  return window.localStorage.getItem(MAP_LOCATION_CONSENT_KEY) === 'true';
 }
 
 // 위치 사용 허용/거부가 한 번이라도 저장되었는지 확인한다.
@@ -672,8 +672,6 @@ function hideMapConsentModal() {
 
 // 모달에서 선택한 위치 사용 여부를 저장하고 대기 중인 흐름을 재개한다.
 function resolveMapConsent(allowed) {
-  const checkbox = document.getElementById('map-location-consent');
-  if (checkbox) checkbox.checked = allowed;
   window.localStorage.setItem(MAP_LOCATION_CONSENT_KEY, String(allowed));
   window.api.setLocationConsent?.(allowed);
   hideMapConsentModal();
@@ -681,8 +679,8 @@ function resolveMapConsent(allowed) {
   mapConsentResolver = null;
   setMapStatus(
     allowed
-      ? '현재 위치 사용이 허용되었습니다. 지도 불러오기를 누르면 실제 위치를 우선 시도합니다.'
-      : '현재 위치 사용이 거부되었습니다. 지도는 IP 기반 대략 위치로 불러옵니다.'
+      ? '위치 기반 데이터 사용이 허용되었습니다. 이후 지도는 실제 위치를 우선 사용합니다.'
+      : '위치 기반 데이터 사용이 거부되었습니다. 지도는 IP 기반 대략 위치로 불러옵니다.'
   );
 }
 
@@ -697,23 +695,10 @@ async function ensureLocationConsentResolved() {
   });
 }
 
-// 저장된 위치 동의 상태를 체크박스 UI와 동기화한다.
-function syncLocationConsentUI() {
-  const checkbox = document.getElementById('map-location-consent');
-  if (!checkbox) return;
-
+// 저장된 위치 동의 상태를 메인 프로세스 권한 상태와 동기화한다.
+function syncLocationConsentState() {
   const savedValue = window.localStorage.getItem(MAP_LOCATION_CONSENT_KEY);
-  checkbox.checked = savedValue === 'true';
-  window.api.setLocationConsent?.(checkbox.checked);
-  checkbox.addEventListener('change', () => {
-    window.localStorage.setItem(MAP_LOCATION_CONSENT_KEY, String(checkbox.checked));
-    window.api.setLocationConsent?.(checkbox.checked);
-    setMapStatus(
-      checkbox.checked
-        ? '현재 위치 사용이 허용되었습니다. 지도 불러오기를 누르면 실제 위치를 우선 시도합니다.'
-        : '현재 위치 사용이 꺼져 있습니다. 지도는 IP 기반 대략 위치로 불러옵니다.'
-    );
-  });
+  window.api.setLocationConsent?.(savedValue === 'true');
 }
 
 // 지도 패널 하단에 장소 검색 결과 목록을 그린다.
@@ -2538,6 +2523,6 @@ function skipMarble() {
 }
 
 // 초기화
-syncLocationConsentUI();
+syncLocationConsentState();
 loadKakaoMapConfig();
 loadAll();
