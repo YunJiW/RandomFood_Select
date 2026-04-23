@@ -14,6 +14,7 @@ let weights   = {};   // { menuId: number }
 let marbleCount = {}; // { menuId: number }
 let editingId = null;
 let favOnly   = false;
+let manageFavOnly = false;
 let activeStatsView = 'summary';
 const selectedCats = new Set(['한식','중식','일식','양식','분식','기타']);
 // 카카오 지도 관련 상태
@@ -150,6 +151,12 @@ function toggleFavOnly() {
   updatePickInfo(); renderWeightList(); drawWheel(wheelAngle);
 }
 
+function toggleManageFavOnly() {
+  manageFavOnly = !manageFavOnly;
+  document.getElementById('manage-fav-toggle')?.classList.toggle('active', manageFavOnly);
+  renderMenus();
+}
+
 // 패널 전환
 function showPanel(name) {
   if (activeMainTab === 'marble') return;
@@ -257,8 +264,29 @@ function getFilteredMenus() {
 // Pick 탭의 메뉴 목록을 렌더링한다.
 function renderMenus() {
   const list = document.getElementById('pick-menu-list');
-  if (!menus.length) { list.innerHTML = '<div class="empty-state">등록된 메뉴가 없습니다.<br>아래에서 메뉴를 추가해 주세요.</div>'; return; }
-  list.innerHTML = menus.map(m => `
+  const info = document.getElementById('pick-menu-manage-info');
+  if (!menus.length) {
+    if (info) info.textContent = '등록된 메뉴 0개';
+    list.innerHTML = '<div class="empty-state">등록된 메뉴가 없습니다.<br>아래에서 메뉴를 추가해 주세요.</div>';
+    return;
+  }
+
+  const visibleMenus = manageFavOnly ? menus.filter(m => m.favorite) : menus;
+  const totalCount = menus.length;
+  const visibleCount = visibleMenus.length;
+
+  if (info) {
+    info.textContent = manageFavOnly
+      ? `즐겨찾기 메뉴 ${visibleCount}개 / 전체 ${totalCount}개`
+      : `등록된 메뉴 ${totalCount}개`;
+  }
+
+  if (!visibleMenus.length) {
+    list.innerHTML = '<div class="empty-state">즐겨찾기한 메뉴가 없습니다.<br>메뉴 오른쪽의 ★ 버튼으로 표시해 주세요.</div>';
+    return;
+  }
+
+  list.innerHTML = visibleMenus.map(m => `
     <div class="menu-item ${m.excluded ? 'excluded' : ''}">
       <span class="cat-badge">${escapeHtml(m.category)}</span>
       <span class="menu-name">${escapeHtml(m.name)}</span>
@@ -517,7 +545,16 @@ async function loadHistory() {
     list.innerHTML = history.map(h => {
       const d = new Date(h.picked_at);
       const t = `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
-      return `<div class="history-item"><span class="history-name">${escapeHtml(h.menu_name)}</span><span class="history-time">${t}</span></div>`;
+      const mealTag = getMealTimeTag(d);
+      return `
+        <div class="history-item">
+          <div class="history-main">
+            <span class="history-name">${escapeHtml(h.menu_name)}</span>
+            <span class="meal-tag ${mealTag.className}">${mealTag.label}</span>
+          </div>
+          <span class="history-time">${t}</span>
+        </div>
+      `;
     }).join('');
   }
   renderStats();
@@ -539,6 +576,14 @@ function formatHistoryDayLabel(date) {
   return `${date.getMonth() + 1}월 ${date.getDate()}일 (${weekdays[date.getDay()]})`;
 }
 
+function getMealTimeTag(date) {
+  const hour = date.getHours();
+  if (hour < 10) return { label: '아침', className: 'breakfast' };
+  if (hour < 15) return { label: '점심', className: 'lunch' };
+  if (hour < 21) return { label: '저녁', className: 'dinner' };
+  return { label: '야식', className: 'late-night' };
+}
+
 function renderStats() {
   const el = document.getElementById('stats-content');
   if (!history.length) { el.innerHTML = '<div class="stat-empty">아직 기록이 없습니다.</div>'; return; }
@@ -557,6 +602,16 @@ function renderStats() {
     catMap[cat] = (catMap[cat] || 0) + 1;
   });
   const topCat = Object.entries(catMap).sort((a, b) => b[1] - a[1])[0];
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 7);
+  const recentMenuNames = new Set(
+    history
+      .filter(entry => new Date(entry.picked_at) >= cutoff)
+      .map(entry => entry.menu_name)
+  );
+  const staleMenus = menus
+    .filter(menu => !menu.excluded && !recentMenuNames.has(menu.name))
+    .slice(0, 5);
   const groupedHistory = history.reduce((groups, entry) => {
     const date = new Date(entry.picked_at);
     const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -587,6 +642,15 @@ function renderStats() {
         <div class="stat-bar-wrap"><div class="stat-bar" style="width:100%"></div></div>
         <span class="stat-count">${topCat[1]}회</span>
       </div>
+      <div class="stats-section-title" style="margin-top:6px">최근 7일 안 먹은 메뉴</div>
+      ${staleMenus.length ? staleMenus.map((menu, index) => `
+        <div class="stat-item">
+          <span class="stat-rank">${index + 1}</span>
+          <span class="stat-name">${escapeHtml(menu.name)}</span>
+          <div class="stat-bar-wrap"><div class="stat-bar" style="width:${Math.max(24, 100 - index * 14)}%"></div></div>
+          <span class="stat-count">휴식</span>
+        </div>
+      `).join('') : '<div class="stat-empty stat-empty-compact">최근 7일 안 먹은 메뉴가 없어요.</div>'}
     ` : `
       <div class="stats-section-title">날짜별 식사 기록</div>
       ${groupedHistoryEntries.map(([key, entries]) => {
@@ -601,9 +665,13 @@ function renderStats() {
               ${entries.map(entry => {
                 const d = new Date(entry.picked_at);
                 const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                const mealTag = getMealTimeTag(d);
                 return `
                   <div class="date-history-item">
-                    <span class="date-history-menu">${escapeHtml(entry.menu_name)}</span>
+                    <div class="date-history-main">
+                      <span class="date-history-menu">${escapeHtml(entry.menu_name)}</span>
+                      <span class="meal-tag ${mealTag.className}">${mealTag.label}</span>
+                    </div>
                     <span class="date-history-time">${time}</span>
                   </div>
                 `;

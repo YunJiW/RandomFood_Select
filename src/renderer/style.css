@@ -745,6 +745,19 @@ body {
 /* ── Pick Tab 메뉴 목록 ── */
 #pick-tab { justify-content: flex-start !important; padding: 0 !important; gap: 0 !important; }
 #pick-main { display: flex; flex-direction: column; align-items: center; gap: 22px; padding: 28px 40px 18px; flex-shrink: 0; }
+#pick-menu-manage-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px 0;
+  flex-wrap: wrap;
+}
+#pick-menu-manage-info {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+}
 #pick-menu-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; }
 #pick-menu-list::-webkit-scrollbar { width: 3px; }
 #pick-menu-list::-webkit-scrollbar-track { background: transparent; }
@@ -1198,6 +1211,11 @@ body {
 .stat-bar { height: 4px; border-radius: 3px; background: var(--accent); }
 .stat-count { font-size: 10px; color: var(--muted); font-weight: 600; min-width: 22px; text-align: right; }
 .stat-empty { text-align: center; color: var(--muted); font-size: 12px; padding: 32px 16px; }
+.stat-empty-compact {
+  padding: 12px 10px;
+  background: var(--surface2);
+  border-radius: 8px;
+}
 .date-history-card {
   padding: 10px;
   background: var(--surface2);
@@ -1235,6 +1253,13 @@ body {
   border-radius: 8px;
   background: rgba(255,255,255,0.03);
 }
+.date-history-main,
+.history-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
 .date-history-menu {
   flex: 1;
   min-width: 0;
@@ -1261,6 +1286,30 @@ body {
 @keyframes slideIn { from { transform: translateX(14px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 .history-name { font-size: 12px; font-weight: 600; }
 .history-time { font-size: 10px; color: var(--muted); }
+.meal-tag {
+  flex-shrink: 0;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.meal-tag.breakfast {
+  background: rgba(78,202,127,0.14);
+  color: var(--success);
+}
+.meal-tag.lunch {
+  background: rgba(255,179,71,0.14);
+  color: var(--accent2);
+}
+.meal-tag.dinner {
+  background: rgba(255,107,53,0.14);
+  color: var(--accent);
+}
+.meal-tag.late-night {
+  background: rgba(255,255,255,0.08);
+  color: var(--text);
+}
 .empty-state { text-align: center; color: var(--muted); font-size: 12px; padding: 32px 16px; line-height: 2; }
 
 /* ── Edit Modal ── */
