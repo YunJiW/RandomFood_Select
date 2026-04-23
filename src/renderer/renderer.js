@@ -27,6 +27,8 @@ let kakaoPlaceInfoWindow = null;
 let kakaoGeocoder = null;
 // 위치 사용 동의 상태는 localStorage에 저장해 재사용한다.
 const MAP_LOCATION_CONSENT_KEY = 'map-location-consent-v2';
+const MAP_PLACE_FAVORITES_KEY = 'map-place-favorites';
+const MAP_RECENT_SEARCHES_KEY = 'map-recent-searches';
 let mapConsentResolver = null;
 let activeSidePanel = null;
 let activeMainTab = 'pick';
@@ -34,6 +36,8 @@ let latestPickedMenuName = '';
 let latestWheelPickedMenuName = '';
 let latestMarblePickedMenuName = '';
 let mapPanelRequestToken = 0;
+let currentMapPlaces = [];
+let mapSearchSort = 'distance';
 
 // 탭 전환
 document.querySelectorAll('.tab').forEach(tab => {
@@ -57,7 +61,14 @@ document.getElementById('new-name').addEventListener('keydown', e => { if (e.key
 document.getElementById('wheel-new-name').addEventListener('keydown', e => { if (e.key === 'Enter') addMenuFromWheel(); });
 document.getElementById('marble-new-name').addEventListener('keydown', e => { if (e.key === 'Enter') addMenuFromMarble(); });
 document.getElementById('map-search-keyword').addEventListener('keydown', e => { if (e.key === 'Enter') searchPlacesOnMap(); });
+document.getElementById('map-search-keyword')?.addEventListener('input', () => renderMapSearchSuggestions());
+document.getElementById('map-search-keyword')?.addEventListener('focus', () => renderMapSearchSuggestions());
+document.getElementById('map-search-keyword')?.addEventListener('blur', () => window.setTimeout(hideMapSearchSuggestions, 120));
 document.getElementById('map-search-address').addEventListener('click', () => openAddressSearchPopup());
+document.getElementById('map-sort-select')?.addEventListener('change', e => {
+  mapSearchSort = e.target.value || 'distance';
+  renderMapSearchResults(currentMapPlaces);
+});
 document.getElementById('marble-win-mode')?.addEventListener('change', () => updateMarbleWinRule());
 document.getElementById('marble-win-rank')?.addEventListener('input', () => updateMarbleWinRule());
 
@@ -601,12 +612,163 @@ function syncWheelPickedMenuMapButton() {
   btn.disabled = !latestWheelPickedMenuName;
 }
 
+function readStoredMapPlaceFavorites() {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(MAP_PLACE_FAVORITES_KEY) || '{}');
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeStoredMapPlaceFavorites(favorites) {
+  window.localStorage.setItem(MAP_PLACE_FAVORITES_KEY, JSON.stringify(favorites));
+}
+
+function isFavoritePlace(placeId) {
+  return Boolean(placeId && readStoredMapPlaceFavorites()[String(placeId)]);
+}
+
+function toggleFavoritePlace(placeId) {
+  const place = currentMapPlaces.find(entry => String(entry.id) === String(placeId))
+    || kakaoPlaceMarkers.find(entry => String(entry.place.id) === String(placeId))?.place;
+  if (!place?.id) return;
+
+  const favorites = readStoredMapPlaceFavorites();
+  const key = String(place.id);
+  if (favorites[key]) {
+    delete favorites[key];
+    showToast(`"${place.name}" 즐겨찾는 가게에서 제거했어요.`);
+  } else {
+    favorites[key] = {
+      id: place.id,
+      name: place.name,
+      category: place.category,
+      address: place.address,
+      distance: place.distance,
+      x: place.x,
+      y: place.y,
+      url: place.url,
+      savedAt: new Date().toISOString(),
+    };
+    showToast(`"${place.name}" 즐겨찾는 가게에 저장했어요.`);
+  }
+  writeStoredMapPlaceFavorites(favorites);
+  renderMapSearchResults(currentMapPlaces);
+
+  const activeEntry = kakaoPlaceMarkers.find(entry => String(entry.place.id) === key);
+  if (activeEntry && kakaoPlaceInfoWindow?.getMap()) {
+    openPlaceInfo(activeEntry.place, activeEntry.marker, { skipReposition: true });
+  }
+}
+
+window.toggleFavoritePlace = toggleFavoritePlace;
+
+function readRecentMapSearches() {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(MAP_RECENT_SEARCHES_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function storeRecentMapSearch(keyword) {
+  const normalized = String(keyword || '').trim();
+  if (!normalized) return;
+  const next = [normalized, ...readRecentMapSearches().filter(item => item !== normalized)].slice(0, 8);
+  window.localStorage.setItem(MAP_RECENT_SEARCHES_KEY, JSON.stringify(next));
+}
+
+function getMapSearchBaseKeyword() {
+  return [
+    latestPickedMenuName,
+    latestWheelPickedMenuName,
+    latestMarblePickedMenuName,
+  ].find(Boolean) || '';
+}
+
+function getMapSearchSuggestions(inputValue = '') {
+  const typed = String(inputValue || '').trim().toLowerCase();
+  const baseKeyword = getMapSearchBaseKeyword();
+  const baseSuggestions = baseKeyword
+    ? [baseKeyword, `${baseKeyword} 맛집`, `${baseKeyword} 점심`, `${baseKeyword} 저녁`, `${baseKeyword} 혼밥`]
+    : [];
+  const genericSuggestions = ['음식점', '맛집', '한식', '중식', '일식', '양식', '분식', '카페'];
+  const recentSearches = readRecentMapSearches();
+  return [...new Set([...baseSuggestions, ...recentSearches, ...genericSuggestions])]
+    .filter(Boolean)
+    .filter(item => !typed || item.toLowerCase().includes(typed))
+    .slice(0, 8);
+}
+
+function hideMapSearchSuggestions() {
+  const container = document.getElementById('map-search-suggestions');
+  if (!container) return;
+  container.classList.remove('show');
+  container.innerHTML = '';
+}
+
+function applyMapSearchSuggestion(keyword) {
+  const input = document.getElementById('map-search-keyword');
+  if (!input) return;
+  input.value = keyword;
+  hideMapSearchSuggestions();
+  searchPlacesOnMap({ keyword });
+}
+
+window.applyMapSearchSuggestion = applyMapSearchSuggestion;
+
+function renderMapSearchSuggestions() {
+  const container = document.getElementById('map-search-suggestions');
+  const input = document.getElementById('map-search-keyword');
+  if (!container || !input) return;
+
+  const suggestions = getMapSearchSuggestions(input.value);
+  if (!suggestions.length) {
+    hideMapSearchSuggestions();
+    return;
+  }
+
+  container.innerHTML = suggestions.map(keyword => `
+    <button class="map-suggestion-chip" type="button" onclick="applyMapSearchSuggestion(${JSON.stringify(keyword)})">
+      ${escapeHtml(keyword)}
+    </button>
+  `).join('');
+  container.classList.add('show');
+}
+
+function sortMapPlaces(places = []) {
+  const sorted = places.slice();
+  if (mapSearchSort === 'name') {
+    sorted.sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ko'));
+    return sorted;
+  }
+  if (mapSearchSort === 'favorite') {
+    sorted.sort((a, b) => {
+      const favoriteGap = Number(isFavoritePlace(b.id)) - Number(isFavoritePlace(a.id));
+      if (favoriteGap) return favoriteGap;
+      const distanceA = Number.isFinite(a.distance) ? a.distance : Number.MAX_SAFE_INTEGER;
+      const distanceB = Number.isFinite(b.distance) ? b.distance : Number.MAX_SAFE_INTEGER;
+      return distanceA - distanceB;
+    });
+    return sorted;
+  }
+  sorted.sort((a, b) => {
+    const distanceA = Number.isFinite(a.distance) ? a.distance : Number.MAX_SAFE_INTEGER;
+    const distanceB = Number.isFinite(b.distance) ? b.distance : Number.MAX_SAFE_INTEGER;
+    return distanceA - distanceB;
+  });
+  return sorted;
+}
+
 async function showPickedMenuMap(menuName, sourceLabel = '메뉴 추천') {
   const keyword = String(menuName || '').trim();
   if (!keyword) return;
 
   const keywordInput = document.getElementById('map-search-keyword');
   if (keywordInput) keywordInput.value = keyword;
+  renderMapSearchSuggestions();
 
   try {
     await testCurrentLocationMap({ skipAutoSearch: true });
@@ -710,16 +872,35 @@ function syncLocationConsentState() {
 // 지도 패널 하단에 장소 검색 결과 목록을 그린다.
 function renderMapSearchResults(places = []) {
   const container = document.getElementById('map-search-results');
-  if (!places.length) {
+  currentMapPlaces = Array.isArray(places) ? places.slice() : [];
+  if (!currentMapPlaces.length) {
     container.innerHTML = '<div class="map-search-empty">검색 결과가 없습니다.</div>';
     return;
   }
 
-  container.innerHTML = places.map((place, index) => `
-    <div class="map-place-item" onclick="focusPlaceMarker(${index})">
-      <div class="map-place-title">${escapeHtml(place.name)}</div>
+  const sortedPlaces = sortMapPlaces(currentMapPlaces);
+  const favoriteCount = sortedPlaces.filter(place => isFavoritePlace(place.id)).length;
+  updateMapMeta(
+    document.getElementById('current-location-meta')?.dataset.baseLabel || '',
+    `${sortedPlaces.length}건 · 저장 ${favoriteCount}건`
+  );
+
+  container.innerHTML = sortedPlaces.map(place => `
+    <div class="map-place-item ${isFavoritePlace(place.id) ? 'favorite' : ''}" onclick="focusPlaceMarker('${escapeHtml(String(place.id))}')">
+      <div class="map-place-header">
+        <div class="map-place-title">${escapeHtml(place.name)}</div>
+        <div class="map-place-actions">
+          <button
+            class="map-favorite-btn ${isFavoritePlace(place.id) ? 'active' : ''}"
+            type="button"
+            title="${isFavoritePlace(place.id) ? '즐겨찾기 해제' : '즐겨찾기 저장'}"
+            onclick="event.stopPropagation(); toggleFavoritePlace('${escapeHtml(String(place.id))}')"
+          >★</button>
+        </div>
+      </div>
       <div class="map-place-meta">${escapeHtml(place.category || '카테고리 없음')}${place.distance ? ` · ${place.distance}m` : ''}</div>
       <div class="map-place-address">${escapeHtml(place.address || '주소 정보 없음')}</div>
+      ${isFavoritePlace(place.id) ? '<div class="map-place-badge">저장한 가게</div>' : ''}
     </div>
   `).join('');
 }
@@ -787,12 +968,14 @@ function openPlaceInfo(place, marker, options = {}) {
   }
 
   const safeUrl = (place.url && /^https:\/\//.test(place.url)) ? place.url : null;
+  const favoriteText = isFavoritePlace(place.id) ? '저장한 가게' : '가게 저장 가능';
   const content = `
     <div style="padding:10px 12px; min-width:240px; max-width:300px; color:#111; line-height:1.5; white-space:normal;">
       <div style="font-weight:700; margin-bottom:4px; padding-right:18px; line-height:1.45; word-break:break-word; overflow-wrap:anywhere;">${escapeHtml(place.name)}</div>
       <div style="font-size:12px; color:#555;">${escapeHtml(place.category || '')}</div>
       <div style="font-size:12px; color:#333; margin-top:6px; word-break:keep-all; overflow-wrap:anywhere;">${escapeHtml(place.address || '')}</div>
       ${place.distance ? `<div style="font-size:12px; color:#ff6b35; margin-top:6px;">현재 중심에서 ${place.distance}m</div>` : ''}
+      <div style="font-size:12px; color:#8c6b1f; margin-top:6px;">★ ${escapeHtml(favoriteText)}</div>
       ${safeUrl ? `<div style="margin-top:8px;"><a href="${escapeHtml(safeUrl)}" target="_blank" rel="noreferrer" style="font-size:12px; color:#0068c3; text-decoration:none;">카카오맵에서 보기</a></div>` : ''}
     </div>
   `;
@@ -816,8 +999,8 @@ function openPlaceInfo(place, marker, options = {}) {
 }
 
 // 검색 목록에서 선택한 장소 마커에 포커싱한다.
-function focusPlaceMarker(index) {
-  const entry = kakaoPlaceMarkers[index];
+function focusPlaceMarker(placeId) {
+  const entry = kakaoPlaceMarkers.find(item => String(item.place.id) === String(placeId));
   if (!entry || !kakaoMapInstance) return;
 
   openPlaceInfo(entry.place, entry.marker);
@@ -826,7 +1009,10 @@ function focusPlaceMarker(index) {
 // 지도 메타 영역에 위치 출처나 검색 요약을 표시한다.
 function updateMapMeta(label = '', extra = '') {
   const parts = [label, extra].filter(Boolean);
-  document.getElementById('current-location-meta').textContent = parts.join(' · ');
+  const meta = document.getElementById('current-location-meta');
+  if (!meta) return;
+  meta.dataset.baseLabel = label || '';
+  meta.textContent = parts.join(' · ');
 }
 
 // 브라우저 geolocation API로 위치를 조회한다.
@@ -1134,6 +1320,7 @@ async function testCurrentLocationMap(options = {}) {
     if (keywordInput && !keywordInput.value.trim()) {
       keywordInput.value = '음식점';
     }
+    renderMapSearchSuggestions();
 
     if (!options.skipAutoSearch) {
       await searchPlacesOnMap({
@@ -1248,6 +1435,7 @@ async function searchPlacesOnMap(options = {}) {
 
     const center = kakaoMapInstance.getCenter();
     setMapStatus(`"${keyword}" 검색 중입니다...`);
+    hideMapSearchSuggestions();
 
     // 메인 프로세스에서 키워드/카테고리 검색을 자동 분기한다.
     const result = await window.api.searchPlaces({
@@ -1263,12 +1451,13 @@ async function searchPlacesOnMap(options = {}) {
       throw new Error(result?.error || '장소 검색에 실패했습니다.');
     }
 
+    storeRecentMapSearch(keyword);
     clearPlaceMarkers();
     renderMapSearchResults(result.places || []);
 
     if (!result.places?.length) {
       updateMapMeta(
-        document.getElementById('current-location-meta')?.textContent || '',
+        document.getElementById('current-location-meta')?.dataset.baseLabel || '',
         `"${keyword}" 결과 없음`
       );
       setMapStatus(`"${keyword}" 검색 결과가 없습니다.`, true);
@@ -1288,7 +1477,7 @@ async function searchPlacesOnMap(options = {}) {
 
     kakaoMapInstance.setBounds(bounds);
     updateMapMeta(
-      document.getElementById('current-location-meta')?.textContent || '',
+      document.getElementById('current-location-meta')?.dataset.baseLabel || '',
       `"${keyword}" ${result.places.length}건`
     );
     const searchModeLabel = result.searchMode === 'category' ? '카테고리 검색' : '키워드 검색';

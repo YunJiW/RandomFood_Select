@@ -223,6 +223,17 @@
     <input type="text" id="map-search-keyword" placeholder="예: 초밥, 카페, 햄버거" />
     <button class="btn-add" onclick="searchPlacesOnMap()">검색</button>
   </div>
+  <div id="map-search-suggestions" class="map-search-suggestions"></div>
+  <div class="map-toolbar-row">
+    <label class="map-sort-control">
+      <span>정렬</span>
+      <select id="map-sort-select">
+        <option value="distance">가까운 순</option>
+        <option value="name">이름순</option>
+        <option value="favorite">저장한 가게 우선</option>
+      </select>
+    </label>
+  </div>
   <div id="current-location-meta" class="current-location-meta"></div>
   <div id="kakao-map"></div>
   <div id="map-search-results" class="map-search-results"></div>
