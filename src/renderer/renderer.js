@@ -14,6 +14,7 @@ let weights   = {};   // { menuId: number }
 let marbleCount = {}; // { menuId: number }
 let editingId = null;
 let favOnly   = false;
+let activeStatsView = 'summary';
 const selectedCats = new Set(['한식','중식','일식','양식','분식','기타']);
 // 카카오 지도 관련 상태
 let kakaoMapConfig = null;
@@ -526,6 +527,18 @@ async function loadHistory() {
 async function clearHistory() { await window.api.clearHistory(); await loadHistory(); showToast('기록 삭제 완료'); }
 
 // 통계
+function setStatsView(view) {
+  activeStatsView = view === 'by-date' ? 'by-date' : 'summary';
+  renderStats();
+}
+
+window.setStatsView = setStatsView;
+
+function formatHistoryDayLabel(date) {
+  const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+  return `${date.getMonth() + 1}월 ${date.getDate()}일 (${weekdays[date.getDay()]})`;
+}
+
 function renderStats() {
   const el = document.getElementById('stats-content');
   if (!history.length) { el.innerHTML = '<div class="stat-empty">아직 기록이 없습니다.</div>'; return; }
@@ -544,23 +557,62 @@ function renderStats() {
     catMap[cat] = (catMap[cat] || 0) + 1;
   });
   const topCat = Object.entries(catMap).sort((a, b) => b[1] - a[1])[0];
+  const groupedHistory = history.reduce((groups, entry) => {
+    const date = new Date(entry.picked_at);
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(entry);
+    return groups;
+  }, {});
+  const groupedHistoryEntries = Object.entries(groupedHistory);
 
   el.innerHTML = `
-    <div class="stats-section-title">자주 먹은 메뉴 TOP 5</div>
-    ${top5.map(([name, cnt], i) => `
-      <div class="stat-item">
-        <span class="stat-rank">${i + 1}</span>
-        <span class="stat-name">${escapeHtml(name)}</span>
-        <div class="stat-bar-wrap"><div class="stat-bar" style="width:${Math.round(cnt/maxCnt*100)}%"></div></div>
-        <span class="stat-count">${cnt}회</span>
-      </div>`).join('')}
-    <div class="stats-section-title" style="margin-top:6px">선호 카테고리</div>
-    <div class="stat-item">
-      <span class="stat-rank">1</span>
-      <span class="stat-name">${escapeHtml(topCat[0])}</span>
-      <div class="stat-bar-wrap"><div class="stat-bar" style="width:100%"></div></div>
-      <span class="stat-count">${topCat[1]}회</span>
+    <div class="stats-view-switch">
+      <button class="stats-view-btn ${activeStatsView === 'summary' ? 'active' : ''}" onclick="setStatsView('summary')">요약</button>
+      <button class="stats-view-btn ${activeStatsView === 'by-date' ? 'active' : ''}" onclick="setStatsView('by-date')">날짜별 기록</button>
     </div>
+    ${activeStatsView === 'summary' ? `
+      <div class="stats-section-title">자주 먹은 메뉴 TOP 5</div>
+      ${top5.map(([name, cnt], i) => `
+        <div class="stat-item">
+          <span class="stat-rank">${i + 1}</span>
+          <span class="stat-name">${escapeHtml(name)}</span>
+          <div class="stat-bar-wrap"><div class="stat-bar" style="width:${Math.round(cnt/maxCnt*100)}%"></div></div>
+          <span class="stat-count">${cnt}회</span>
+        </div>`).join('')}
+      <div class="stats-section-title" style="margin-top:6px">선호 카테고리</div>
+      <div class="stat-item">
+        <span class="stat-rank">1</span>
+        <span class="stat-name">${escapeHtml(topCat[0])}</span>
+        <div class="stat-bar-wrap"><div class="stat-bar" style="width:100%"></div></div>
+        <span class="stat-count">${topCat[1]}회</span>
+      </div>
+    ` : `
+      <div class="stats-section-title">날짜별 식사 기록</div>
+      ${groupedHistoryEntries.map(([key, entries]) => {
+        const date = new Date(entries[0].picked_at);
+        return `
+          <div class="date-history-card">
+            <div class="date-history-header">
+              <span class="date-history-title">${escapeHtml(formatHistoryDayLabel(date))}</span>
+              <span class="date-history-count">${entries.length}회</span>
+            </div>
+            <div class="date-history-list">
+              ${entries.map(entry => {
+                const d = new Date(entry.picked_at);
+                const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                return `
+                  <div class="date-history-item">
+                    <span class="date-history-menu">${escapeHtml(entry.menu_name)}</span>
+                    <span class="date-history-time">${time}</span>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      }).join('')}
+    `}
   `;
 }
 
