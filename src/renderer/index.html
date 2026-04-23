@@ -208,6 +208,10 @@
     <span>현재 위치 사용 허용</span>
   </label>
   <div class="map-search-row">
+    <input type="text" id="map-search-address" placeholder="주소 검색 팝업에서 선택한 주소가 표시됩니다." readonly />
+    <button class="btn-add" onclick="openAddressSearchPopup()">주소 찾기</button>
+  </div>
+  <div class="map-search-row">
     <input type="text" id="map-search-keyword" placeholder="예: 초밥, 카페, 햄버거" />
     <button class="btn-add" onclick="searchPlacesOnMap()">검색</button>
   </div>
@@ -226,6 +230,16 @@
       <button class="btn-cancel" onclick="resolveMapConsent(false)">거부</button>
       <button class="btn-save" onclick="resolveMapConsent(true)">허용</button>
     </div>
+  </div>
+</div>
+
+<div id="address-search-modal" class="address-search-modal">
+  <div class="address-search-dialog">
+    <div class="address-search-header">
+      <div class="address-search-title">주소 찾기</div>
+      <button class="map-close-btn" onclick="closeAddressSearchPopup()">닫기</button>
+    </div>
+    <div id="address-search-frame" class="address-search-frame"></div>
   </div>
 </div>
 

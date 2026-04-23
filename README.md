@@ -96,14 +96,14 @@ PORT=3000
 RandomFood_Select/
 ├── src/
 │   ├── main/
-│   │   └── main.js         # Electron 메인 프로세스, 로컬 HTTP 서버, IPC 핸들러, DB, 카카오 REST API
+│   │   └── main.js         # Electron 메인 프로세스, 로컬 HTTP 서버, IPC 핸들러, DB, Kakao API
 │   ├── preload/
 │   │   └── preload.js      # Context Bridge (보안 IPC 브리지)
 │   └── renderer/
 │       ├── index.html      # UI 마크업
 │       ├── renderer.js     # 렌더러 로직 (뽑기, 돌림판, 마블, 지도)
 │       └── style.css       # 다크 테마 스타일
-├── .env                    # 카카오 API 키 (git 제외)
+├── .env                    # Kakao API 키 (git 제외)
 ├── .env.example            # 환경 변수 템플릿
 ├── package.json
 └── README.md

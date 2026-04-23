@@ -29,6 +29,7 @@ body {
   overflow: hidden;
   user-select: none;
   -webkit-font-smoothing: antialiased;
+  position: relative;
 }
 
 /* ── Titlebar ── */
@@ -244,32 +245,29 @@ body {
 }
 #pick-info { font-size: 11px; color: var(--muted); font-weight: 500; }
 .map-test-panel {
-  order: -1;
-  width: 0;
-  min-width: 0;
-  flex: 0 0 0;
+  width: min(420px, calc(100vw - 116px));
+  max-width: calc(100vw - 116px);
   display: flex;
-  position: relative;
+  position: fixed;
+  top: 52px;
+  left: 88px;
+  bottom: 14px;
   flex-direction: column;
   gap: 10px;
-  padding: 0;
+  padding: 14px;
   background: linear-gradient(180deg, rgba(32,32,37,0.98), rgba(23,23,26,1));
-  border-right: 1px solid var(--border);
-  border-left: none;
-  border-radius: 0;
-  box-shadow: none;
-  z-index: 1;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: 0 20px 48px rgba(0,0,0,0.36);
+  z-index: 140;
   isolation: isolate;
   overflow: hidden;
   opacity: 0;
   pointer-events: none;
-  transform: translateX(18px);
-  transition: width 0.22s ease, flex-basis 0.22s ease, padding 0.22s ease, opacity 0.18s ease, transform 0.22s ease;
+  transform: translateX(-18px);
+  transition: opacity 0.18s ease, transform 0.22s ease;
 }
 .map-test-panel.show {
-  width: min(420px, 42%);
-  flex-basis: min(420px, 42%);
-  padding: 14px;
   opacity: 1;
   pointer-events: auto;
   transform: translateX(0);
@@ -364,6 +362,14 @@ body {
   outline: none;
 }
 .map-search-row input:focus { border-color: var(--accent); }
+.map-search-row input[readonly] {
+  cursor: pointer;
+  color: var(--text);
+}
+.map-search-row {
+  display: flex;
+  gap: 8px;
+}
 .current-location-meta {
   min-height: 18px;
   font-size: 11px;
@@ -388,6 +394,15 @@ body {
   flex-direction: column;
   gap: 6px;
   padding-right: 2px;
+}
+@media (max-width: 900px) {
+  .map-test-panel {
+    left: 14px;
+    right: 14px;
+    width: auto;
+    max-width: none;
+    bottom: 14px;
+  }
 }
 .map-search-results::-webkit-scrollbar { width: 4px; }
 .map-search-results::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
@@ -466,6 +481,50 @@ body {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+.address-search-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 240;
+  background: rgba(0,0,0,0.54);
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.address-search-modal.show {
+  display: flex;
+}
+.address-search-dialog {
+  width: min(100%, 540px);
+  height: min(78vh, 680px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(32,32,37,0.99), rgba(23,23,26,0.99));
+  box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+}
+.address-search-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.address-search-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: var(--text);
+}
+.address-search-frame {
+  flex: 1;
+  min-height: 420px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fff;
 }
 
 /* ── Wheel Tab ── */
