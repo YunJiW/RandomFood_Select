@@ -395,7 +395,7 @@ body {
   gap: 6px;
   padding-right: 2px;
 }
-@media (max-width: 900px) {
+@media (max-width: 560px) {
   .map-test-panel {
     left: 14px;
     right: 14px;

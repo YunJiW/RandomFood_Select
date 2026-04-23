@@ -479,7 +479,6 @@ function createWindow() {
   });
 
   mainWin.loadURL(serverUrl);
-  if (!app.isPackaged) mainWin.webContents.openDevTools({ mode: 'right' });
 }
 
 function getWindowBaseMinSize(tab) {
