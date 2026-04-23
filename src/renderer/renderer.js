@@ -32,6 +32,7 @@ let activeSidePanel = null;
 let activeMainTab = 'pick';
 let latestPickedMenuName = '';
 let latestWheelPickedMenuName = '';
+let latestMarblePickedMenuName = '';
 let mapPanelRequestToken = 0;
 
 // 탭 전환
@@ -634,6 +635,20 @@ async function openWheelPickedMenuMap() {
     return;
   }
   await showPickedMenuMap(latestWheelPickedMenuName, '돌림판');
+}
+
+function syncMarblePickedMenuMapButton() {
+  const btn = document.getElementById('marble-map-btn');
+  if (!btn) return;
+  btn.disabled = !latestMarblePickedMenuName;
+}
+
+async function openMarblePickedMenuMap() {
+  if (!latestMarblePickedMenuName) {
+    showToast('먼저 마블 룰렛 결과를 확인해주세요.', true);
+    return;
+  }
+  await showPickedMenuMap(latestMarblePickedMenuName, '마블 룰렛');
 }
 
 function hasLocationConsent() {
@@ -2431,6 +2446,8 @@ function finalizeMarbleWinner(winner) {
   document.getElementById('marble-start-btn').textContent = '다시 하기';
   document.getElementById('marble-skip-btn').disabled     = true;
   renderMarbleRanking(winner);
+  latestMarblePickedMenuName = winner.menu.name;
+  syncMarblePickedMenuMapButton();
   window.api.recordPick(winner.menu.name).then(() => loadHistory());
 }
 
